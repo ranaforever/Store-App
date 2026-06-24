@@ -40,6 +40,12 @@ interface AdminPanelProps {
   onDeleteCategory: (id: string) => void;
   onUpdateCategory: (id: string, name: string, oldName: string) => void;
   
+  onDeleteSale: (id: string) => void;
+  onUpdateSale: (id: string, updatedSale: Sale) => void;
+  
+  onDeleteExpense: (id: string) => void;
+  onUpdateExpense: (id: string, updatedExpense: Expense) => void;
+  
   onUpdateStoreName: (name: string) => void;
   onUpdatePassword: (newPass: string) => void;
   onImportBackup: (dataStr: string) => boolean;
@@ -75,6 +81,10 @@ export default function AdminPanel({
   onAddCategory,
   onDeleteCategory,
   onUpdateCategory,
+  onDeleteSale,
+  onUpdateSale,
+  onDeleteExpense,
+  onUpdateExpense,
   onUpdateStoreName,
   onUpdatePassword,
   onImportBackup,
@@ -98,7 +108,27 @@ export default function AdminPanel({
   const [editCategoryName, setEditCategoryName] = React.useState("");
 
   // Sub-navigation tabs
-  const [activeSubTab, setActiveSubTab] = React.useState<"reports" | "products" | "staff" | "categories" | "settings" | "supabase">("reports");
+  const [activeSubTab, setActiveSubTab] = React.useState<"reports" | "sales" | "expenses" | "products" | "staff" | "categories" | "settings" | "supabase">("reports");
+
+  // Sales List Search & Edit States
+  const [saleSearchQuery, setSaleSearchQuery] = React.useState("");
+  const [editingSaleId, setEditingSaleId] = React.useState<string | null>(null);
+  const [editSaleDate, setEditSaleDate] = React.useState("");
+  const [editSaleStaff, setEditSaleStaff] = React.useState("");
+  const [editSaleDiscount, setEditSaleDiscount] = React.useState<number>(0);
+  const [editSaleItems, setEditSaleItems] = React.useState<any[]>([]);
+  const [editSaleReceivedAmount, setEditSaleReceivedAmount] = React.useState<number>(0);
+  const [editSaleError, setEditSaleError] = React.useState("");
+
+  // Expenses List Search & Edit States
+  const [expenseSearchQuery, setExpenseSearchQuery] = React.useState("");
+  const [editingExpenseIdAdmin, setEditingExpenseIdAdmin] = React.useState<string | null>(null);
+  const [editExpenseCategoryAdmin, setEditExpenseCategoryAdmin] = React.useState("");
+  const [editExpenseAmountAdmin, setEditExpenseAmountAdmin] = React.useState<number>(0);
+  const [editExpenseDateAdmin, setEditExpenseDateAdmin] = React.useState("");
+  const [editExpenseNoteAdmin, setEditExpenseNoteAdmin] = React.useState("");
+  const [editExpenseStaffAdmin, setEditExpenseStaffAdmin] = React.useState("");
+  const [editExpenseErrorAdmin, setEditExpenseErrorAdmin] = React.useState("");
 
 
   // Admin Operations State
@@ -230,6 +260,126 @@ export default function AdminPanel({
     fileReader.readAsText(file);
   };
 
+  const handleEditExpenseAdminSubmit = (id: string) => {
+    setEditExpenseErrorAdmin("");
+    if (!editExpenseCategoryAdmin) {
+      setEditExpenseErrorAdmin("খাত নির্বাচন আবশ্যক!");
+      return;
+    }
+    if (editExpenseAmountAdmin <= 0) {
+      setEditExpenseErrorAdmin("টাকার পরিমাণ ০ এর বেশি হতে হবে!");
+      return;
+    }
+    if (!editExpenseStaffAdmin) {
+      setEditExpenseErrorAdmin("কর্মী কোড আবশ্যক!");
+      return;
+    }
+    const isValidStaff = editExpenseStaffAdmin.toUpperCase() === "ADMIN" || staffCodes.some(
+      (s) => s.code.toUpperCase() === editExpenseStaffAdmin.toUpperCase()
+    );
+    if (!isValidStaff) {
+      setEditExpenseErrorAdmin("ভুল কর্মী কোড!");
+      return;
+    }
+
+    const matchedExpense = expenses.find(e => e.id === id);
+    if (!matchedExpense) return;
+
+    const updatedExpense: Expense = {
+      ...matchedExpense,
+      category: editExpenseCategoryAdmin,
+      amount: editExpenseAmountAdmin,
+      date: new Date(editExpenseDateAdmin).toISOString(),
+      note: editExpenseNoteAdmin,
+      staffCode: editExpenseStaffAdmin.toUpperCase(),
+    };
+
+    onUpdateExpense(id, updatedExpense);
+    setEditingExpenseIdAdmin(null);
+  };
+
+  const handleEditSaleSubmit = (id: string) => {
+    setEditSaleError("");
+    if (!editSaleStaff) {
+      setEditSaleError("কর্মী কোড আবশ্যক!");
+      return;
+    }
+    const isValidStaff = editSaleStaff.toUpperCase() === "ADMIN" || staffCodes.some(
+      (s) => s.code.toUpperCase() === editSaleStaff.toUpperCase()
+    );
+    if (!isValidStaff) {
+      setEditSaleError("ভুল কর্মী কোড!");
+      return;
+    }
+    if (editSaleItems.length === 0) {
+      setEditSaleError("রশিদে অন্তত একটি পণ্য থাকা আবশ্যক!");
+      return;
+    }
+
+    // Recalculate everything to be 100% correct
+    const newSubtotal = editSaleItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const newTotal = Math.max(0, newSubtotal - editSaleDiscount);
+    const newChange = Math.max(0, editSaleReceivedAmount - newTotal);
+
+    const updatedSale: Sale = {
+      id,
+      invoiceNo: sales.find(s => s.id === id)?.invoiceNo || `INV-${Math.floor(100000 + Math.random() * 900000)}`,
+      date: new Date(editSaleDate).toISOString(),
+      items: editSaleItems.map(item => ({
+        ...item,
+        total: item.price * item.quantity
+      })),
+      discount: editSaleDiscount,
+      subtotal: newSubtotal,
+      total: newTotal,
+      staffCode: editSaleStaff.toUpperCase(),
+      receivedAmount: editSaleReceivedAmount,
+      changeAmount: newChange
+    };
+
+    onUpdateSale(id, updatedSale);
+    setEditingSaleId(null);
+  };
+
+  const formatDateForInput = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toISOString().slice(0, 10);
+    } catch (e) {
+      return new Date().toISOString().slice(0, 10);
+    }
+  };
+
+  const handleUpdateSaleItemQty = (productId: string, newQty: number) => {
+    setEditSaleItems(prev => prev.map(item => {
+      if (item.id === productId) {
+        return { ...item, quantity: newQty, total: item.price * newQty };
+      }
+      return item;
+    }).filter(item => item.quantity > 0));
+  };
+
+  const handleAddProductToEditedSale = (productId: string) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return;
+    const exists = editSaleItems.find(item => item.id === product.id);
+    if (exists) {
+      setEditSaleItems(prev => prev.map(item => {
+        if (item.id === product.id) {
+          return { ...item, quantity: item.quantity + 1, total: item.price * (item.quantity + 1) };
+        }
+        return item;
+      }));
+    } else {
+      setEditSaleItems(prev => [...prev, {
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        quantity: 1,
+        total: product.price
+      }]);
+    }
+  };
+
   // Filter Sales & Expenses for screen preview before download
   const filteredSalesCount = sales.length;
   const filteredExpensesCount = expenses.length;
@@ -301,6 +451,8 @@ export default function AdminPanel({
         <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-xl self-start sm:self-center">
           {[
             { id: "reports" as const, label: "এক্সেল রিপোর্ট", icon: Download },
+            { id: "sales" as const, label: "বিক্রয় তালিকা", icon: ArrowUpCircle },
+            { id: "expenses" as const, label: "খরচ তালিকা", icon: ArrowDownCircle },
             { id: "products" as const, label: "পণ্য তালিকা", icon: ShoppingBag },
             { id: "staff" as const, label: "কর্মী তালিকা", icon: Users },
             { id: "categories" as const, label: "খরচের খাত", icon: ListPlus },
@@ -437,6 +589,531 @@ export default function AdminPanel({
             </div>
           </div>
 
+        </div>
+      )}
+
+      {/* 1.1 Sales Management */}
+      {activeSubTab === "sales" && (
+        <div id="sales-subtab-container" className="space-y-6">
+          
+          {/* Sale Editing Form (if editingSaleId is set) */}
+          {editingSaleId && (
+            <div className="bg-amber-50/50 border border-amber-200/80 p-6 rounded-2xl shadow-sm space-y-4 animate-fade-in">
+              <div className="flex justify-between items-center border-b border-amber-200 pb-3">
+                <div className="flex items-center gap-2">
+                  <Edit2 className="w-5 h-5 text-amber-700 animate-pulse" />
+                  <h3 className="font-bold text-amber-900 text-sm">
+                    বিক্রয় মেমো সংশোধন — রশিদ নং: {sales.find(s => s.id === editingSaleId)?.invoiceNo}
+                  </h3>
+                </div>
+                <button 
+                  onClick={() => setEditingSaleId(null)}
+                  className="text-amber-800 hover:text-amber-950 font-bold text-xs cursor-pointer"
+                >
+                  বাতিল করুন
+                </button>
+              </div>
+
+              {editSaleError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl font-medium">
+                  ❌ {editSaleError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-500 block">বিক্রয় তারিখ *</label>
+                  <input
+                    type="date"
+                    value={editSaleDate}
+                    onChange={(e) => setEditSaleDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-500 block">বিক্রয়কর্মী কোড *</label>
+                  <select
+                    value={editSaleStaff}
+                    onChange={(e) => setEditSaleStaff(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="ADMIN">ADMIN</option>
+                    {staffCodes.map((s) => (
+                      <option key={s.code} value={s.code}>{s.code} ({s.name})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-500 block">পণ্য যোগ করুন (ঐচ্ছিক)</label>
+                  <select
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        handleAddProductToEditedSale(e.target.value);
+                        e.target.value = ""; // reset dropdown
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-amber-500 text-slate-600"
+                  >
+                    <option value="">-- পণ্য নির্বাচন করুন --</option>
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name} - ৳{p.price}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-slate-500 block">মেমোর পণ্যসমূহ ও পরিমাণ *</label>
+                <div className="border border-amber-200/60 rounded-xl overflow-hidden bg-white">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-100 text-[10px] uppercase font-bold text-slate-500">
+                        <th className="p-3">পণ্যের নাম</th>
+                        <th className="p-3 text-center">একক মূল্য (৳)</th>
+                        <th className="p-3 text-center" style={{ width: '100px' }}>পরিমাণ</th>
+                        <th className="p-3 text-right">মোট মূল্য (৳)</th>
+                        <th className="p-3 text-center" style={{ width: '60px' }}>মুছুন</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {editSaleItems.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50/50">
+                          <td className="p-3 font-semibold text-slate-800">{item.name}</td>
+                          <td className="p-3 text-center font-bold text-slate-600">৳{item.price}</td>
+                          <td className="p-3 text-center">
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => handleUpdateSaleItemQty(item.id, Math.max(0, parseInt(e.target.value, 10) || 0))}
+                              className="w-16 px-2 py-1 text-center bg-slate-50 border border-slate-200 rounded-md text-xs font-bold focus:outline-none focus:border-amber-500"
+                            />
+                          </td>
+                          <td className="p-3 text-right font-extrabold text-slate-800">
+                            ৳{item.price * item.quantity}
+                          </td>
+                          <td className="p-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => setEditSaleItems(prev => prev.filter(i => i.id !== item.id))}
+                              className="text-slate-400 hover:text-rose-500 transition-colors p-1 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Adjust discount / received */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-4 rounded-xl border border-amber-200/50">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 block">ছাড় (Discount ৳)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editSaleDiscount}
+                    onChange={(e) => setEditSaleDiscount(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-rose-600"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 block">গ্রহনকৃত টাকা (Received ৳)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editSaleReceivedAmount}
+                    onChange={(e) => setEditSaleReceivedAmount(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-green-700"
+                  />
+                </div>
+
+                {/* Live math */}
+                <div className="flex flex-col justify-center px-2 py-1 border-l border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400">নতুন মোট মূল্য:</span>
+                  <span className="text-base font-extrabold text-blue-700">
+                    ৳{Math.max(0, editSaleItems.reduce((acc, item) => acc + (item.price * item.quantity), 0) - editSaleDiscount)}
+                  </span>
+                </div>
+
+                <div className="flex flex-col justify-center px-2 py-1 border-l border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400">ফেরতযোগ্য টাকা:</span>
+                  <span className="text-base font-extrabold text-emerald-700">
+                    ৳{Math.max(0, editSaleReceivedAmount - Math.max(0, editSaleItems.reduce((acc, item) => acc + (item.price * item.quantity), 0) - editSaleDiscount))}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingSaleId(null)}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors cursor-pointer"
+                >
+                  বাতিল করুন
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleEditSaleSubmit(editingSaleId)}
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-md shadow-amber-100 transition-all cursor-pointer flex items-center gap-1"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>মেমো আপডেট করুন</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Sales Listing Table */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <h4 className="font-bold text-slate-800 text-sm">বিক্রয় মেমো তালিকা (Invoices)</h4>
+                <p className="text-xs text-slate-400 mt-0.5">সব বিক্রয় মেমো অনুসন্ধান করুন, সংশোধন বা ডিলিট করুন</p>
+              </div>
+              
+              {/* Search Box */}
+              <div className="relative w-full sm:w-64">
+                <input
+                  type="text"
+                  placeholder="রশিদ নং বা কর্মী কোড..."
+                  value={saleSearchQuery}
+                  onChange={(e) => setSaleSearchQuery(e.target.value)}
+                  className="w-full pl-3 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500"
+                />
+                {saleSearchQuery && (
+                  <button 
+                    onClick={() => setSaleSearchQuery("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100 text-[10px] uppercase font-bold text-slate-500">
+                    <th className="p-3">তারিখ</th>
+                    <th className="p-3">রশিদ নং</th>
+                    <th className="p-3">বিক্রয়কর্মী</th>
+                    <th className="p-3">ক্রয়কৃত পণ্যসমূহ</th>
+                    <th className="p-3 text-right">উপমোট (৳)</th>
+                    <th className="p-3 text-right">ছাড় (৳)</th>
+                    <th className="p-3 text-right">মোট (৳)</th>
+                    <th className="p-3 text-center" style={{ width: '100px' }}>অ্যাকশন</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {sales
+                    .filter(s => {
+                      const query = saleSearchQuery.toLowerCase().trim();
+                      if (!query) return true;
+                      return (
+                        s.invoiceNo.toLowerCase().includes(query) ||
+                        s.staffCode.toLowerCase().includes(query) ||
+                        s.items.some(item => item.name.toLowerCase().includes(query))
+                      );
+                    })
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    .map((sale) => (
+                      <tr key={sale.id} className="hover:bg-slate-50/30">
+                        <td className="p-3 text-slate-500 font-normal">
+                          {new Date(sale.date).toLocaleDateString('bn-BD', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </td>
+                        <td className="p-3 font-bold text-slate-700">{sale.invoiceNo}</td>
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-bold">
+                            {sale.staffCode}
+                          </span>
+                        </td>
+                        <td className="p-3 text-slate-600 max-w-xs truncate" title={sale.items.map(i => `${i.name} (x${i.quantity})`).join(', ')}>
+                          {sale.items.map(i => `${i.name} (x${i.quantity})`).join(', ')}
+                        </td>
+                        <td className="p-3 text-right text-slate-500">৳{sale.subtotal}</td>
+                        <td className="p-3 text-right text-rose-500">৳{sale.discount || 0}</td>
+                        <td className="p-3 text-right font-extrabold text-slate-800">৳{sale.total}</td>
+                        <td className="p-3 text-center flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingSaleId(sale.id);
+                              setEditSaleDate(formatDateForInput(sale.date));
+                              setEditSaleStaff(sale.staffCode);
+                              setEditSaleDiscount(sale.discount || 0);
+                              setEditSaleItems([...sale.items]);
+                              setEditSaleReceivedAmount(sale.receivedAmount || sale.total);
+                              setEditSaleError("");
+                            }}
+                            className="text-slate-400 hover:text-blue-600 p-1.5 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                            title="সম্পাদনা"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(`আপনি কি নিশ্চিতভাবে এই বিক্রয় রশিদটি (${sale.invoiceNo}) ডিলিট করতে চান?`)) {
+                                onDeleteSale(sale.id);
+                              }
+                            }}
+                            className="text-slate-400 hover:text-rose-500 p-1.5 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            title="মুছে ফেলুন"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  {sales.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="p-8 text-center text-slate-400 font-semibold">
+                        কোন বিক্রয় রেকর্ড পাওয়া যায়নি!
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 1.2 Expenses Management */}
+      {activeSubTab === "expenses" && (
+        <div id="expenses-subtab-container" className="space-y-6">
+          
+          {/* Expense Editing Form */}
+          {editingExpenseIdAdmin && (
+            <div className="bg-amber-50/50 border border-amber-200/80 p-6 rounded-2xl shadow-sm space-y-4 animate-fade-in">
+              <div className="flex justify-between items-center border-b border-amber-200 pb-3">
+                <div className="flex items-center gap-2">
+                  <Edit2 className="w-5 h-5 text-amber-700 animate-pulse" />
+                  <h3 className="font-bold text-amber-900 text-sm">খরচ রেকর্ড সংশোধন করুন</h3>
+                </div>
+                <button 
+                  onClick={() => setEditingExpenseIdAdmin(null)}
+                  className="text-amber-800 hover:text-amber-950 font-bold text-xs cursor-pointer"
+                >
+                  বাতিল করুন
+                </button>
+              </div>
+
+              {editExpenseErrorAdmin && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl font-medium">
+                  ❌ {editExpenseErrorAdmin}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-500 block">খরচের খাত *</label>
+                  <select
+                    value={editExpenseCategoryAdmin}
+                    onChange={(e) => setEditExpenseCategoryAdmin(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="">-- খাত নির্বাচন করুন --</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.name}>{cat.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-500 block">টাকার পরিমাণ (৳) *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editExpenseAmountAdmin || ""}
+                    onChange={(e) => setEditExpenseAmountAdmin(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-rose-600 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-500 block">তারিখ *</label>
+                  <input
+                    type="date"
+                    value={editExpenseDateAdmin}
+                    onChange={(e) => setEditExpenseDateAdmin(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-500 block">কর্মী কোড *</label>
+                  <select
+                    value={editExpenseStaffAdmin}
+                    onChange={(e) => setEditExpenseStaffAdmin(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="ADMIN">ADMIN</option>
+                    {staffCodes.map((s) => (
+                      <option key={s.code} value={s.code}>{s.code} ({s.name})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-500 block">মন্তব্য / বিবরণ</label>
+                <input
+                  type="text"
+                  placeholder="যেমন: চা নাস্তা বিল..."
+                  value={editExpenseNoteAdmin}
+                  onChange={(e) => setEditExpenseNoteAdmin(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingExpenseIdAdmin(null)}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors cursor-pointer"
+                >
+                  বাতিল করুন
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleEditExpenseAdminSubmit(editingExpenseIdAdmin)}
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold shadow-md shadow-amber-100 transition-all cursor-pointer flex items-center gap-1"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>খরচ আপডেট করুন</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Expenses Listing Table */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <h4 className="font-bold text-slate-800 text-sm">খরচ তালিকা (Expenses)</h4>
+                <p className="text-xs text-slate-400 mt-0.5">সব খরচের হিসাব অনুসন্ধান করুন, সংশোধন বা ডিলিট করুন</p>
+              </div>
+              
+              {/* Search Box */}
+              <div className="relative w-full sm:w-64">
+                <input
+                  type="text"
+                  placeholder="খাত বা কর্মী কোড লিখে খুঁজুন..."
+                  value={expenseSearchQuery}
+                  onChange={(e) => setExpenseSearchQuery(e.target.value)}
+                  className="w-full pl-3 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500"
+                />
+                {expenseSearchQuery && (
+                  <button 
+                    onClick={() => setExpenseSearchQuery("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100 text-[10px] uppercase font-bold text-slate-500">
+                    <th className="p-3">তারিখ</th>
+                    <th className="p-3">খরচের খাত</th>
+                    <th className="p-3">কর্মী</th>
+                    <th className="p-3">বিবরণ / মন্তব্য</th>
+                    <th className="p-3 text-right">পরিমাণ (৳)</th>
+                    <th className="p-3 text-center" style={{ width: '100px' }}>অ্যাকশন</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {expenses
+                    .filter(e => {
+                      const query = expenseSearchQuery.toLowerCase().trim();
+                      if (!query) return true;
+                      return (
+                        e.category.toLowerCase().includes(query) ||
+                        e.staffCode.toLowerCase().includes(query) ||
+                        (e.note && e.note.toLowerCase().includes(query))
+                      );
+                    })
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    .map((exp) => (
+                      <tr key={exp.id} className="hover:bg-slate-50/30">
+                        <td className="p-3 text-slate-500 font-normal">
+                          {new Date(exp.date).toLocaleDateString('bn-BD', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </td>
+                        <td className="p-3 font-bold text-slate-700">{exp.category}</td>
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-bold">
+                            {exp.staffCode}
+                          </span>
+                        </td>
+                        <td className="p-3 text-slate-600">{exp.note || "---"}</td>
+                        <td className="p-3 text-right font-extrabold text-rose-600">৳{exp.amount}</td>
+                        <td className="p-3 text-center flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingExpenseIdAdmin(exp.id);
+                              setEditExpenseCategoryAdmin(exp.category);
+                              setEditExpenseAmountAdmin(exp.amount);
+                              setEditExpenseDateAdmin(formatDateForInput(exp.date));
+                              setEditExpenseNoteAdmin(exp.note || "");
+                              setEditExpenseStaffAdmin(exp.staffCode);
+                              setEditExpenseErrorAdmin("");
+                            }}
+                            className="text-slate-400 hover:text-blue-600 p-1.5 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                            title="সম্পাদনা"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(`আপনি কি নিশ্চিতভাবে এই খরচ রেকর্ডটি (${exp.category}: ৳${exp.amount}) ডিলিট করতে চান?`)) {
+                                onDeleteExpense(exp.id);
+                              }
+                            }}
+                            className="text-slate-400 hover:text-rose-500 p-1.5 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            title="মুছে ফেলুন"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  {expenses.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-slate-400 font-semibold">
+                        কোন খরচ রেকর্ড পাওয়া যায়নি!
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 

@@ -508,6 +508,24 @@ export default function App() {
     }
   };
 
+  const handleDeleteSale = async (id: string) => {
+    const updated = sales.filter((s) => s.id !== id);
+    setSales(updated);
+    updateLocalStorage("tally_sales", updated);
+    if (supabaseStatus === "connected" && supabaseAutoSync) {
+      await deleteSaleFromDb(id);
+    }
+  };
+
+  const handleUpdateSale = async (id: string, updatedSale: Sale) => {
+    const updated = sales.map((s) => s.id === id ? updatedSale : s);
+    setSales(updated);
+    updateLocalStorage("tally_sales", updated);
+    if (supabaseStatus === "connected" && supabaseAutoSync) {
+      await saveSale(updatedSale);
+    }
+  };
+
   const handleUpdateStoreName = async (name: string) => {
     setStoreName(name);
     localStorage.setItem("tally_store_name", name);
@@ -928,6 +946,10 @@ export default function App() {
               onAddCategory={handleAddCategory}
               onDeleteCategory={handleDeleteCategory}
               onUpdateCategory={handleUpdateCategory}
+              onDeleteSale={handleDeleteSale}
+              onUpdateSale={handleUpdateSale}
+              onDeleteExpense={handleDeleteExpense}
+              onUpdateExpense={handleUpdateExpense}
               onUpdateStoreName={handleUpdateStoreName}
               onUpdatePassword={handleUpdatePassword}
               onImportBackup={handleImportBackup}
