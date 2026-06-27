@@ -14,6 +14,7 @@ import AdminPanel from "./components/AdminPanel";
 import POSReceiptModal from "./components/POSReceiptModal";
 import MomoPartnership from "./components/MomoPartnership";
 import { 
+  supabase,
   isSupabaseConfigured,
   checkTablesExist,
   downloadConfig as fetchStoreSettings,
@@ -221,6 +222,150 @@ export default function App() {
       setSupabaseSyncing(false);
     }
   };
+
+  const handleSilentSupabasePull = async () => {
+    if (!isSupabaseConfigured || !supabaseAutoSync || supabaseStatus !== "connected") return;
+    try {
+      const dbStore = await fetchStoreSettings();
+      if (dbStore) {
+        setStoreName(prev => {
+          if (prev !== dbStore.storeName) {
+            localStorage.setItem("tally_store_name", dbStore.storeName);
+            return dbStore.storeName;
+          }
+          return prev;
+        });
+        setAdminPasswordHash(prev => {
+          if (prev !== dbStore.adminPasswordHash) {
+            localStorage.setItem("tally_admin_password", dbStore.adminPasswordHash);
+            return dbStore.adminPasswordHash;
+          }
+          return prev;
+        });
+      }
+
+      const dbProducts = await fetchProducts();
+      if (dbProducts) {
+        setProducts(prev => {
+          const dbStr = JSON.stringify(dbProducts);
+          if (JSON.stringify(prev) !== dbStr) {
+            localStorage.setItem("tally_products", dbStr);
+            return dbProducts;
+          }
+          return prev;
+        });
+      }
+
+      const dbStaff = await fetchStaffCodes();
+      if (dbStaff) {
+        setStaffCodes(prev => {
+          const dbStr = JSON.stringify(dbStaff);
+          if (JSON.stringify(prev) !== dbStr) {
+            localStorage.setItem("tally_staff", dbStr);
+            return dbStaff;
+          }
+          return prev;
+        });
+      }
+
+      const dbCategories = await fetchExpenseCategories();
+      if (dbCategories) {
+        setCategories(prev => {
+          const dbStr = JSON.stringify(dbCategories);
+          if (JSON.stringify(prev) !== dbStr) {
+            localStorage.setItem("tally_categories", dbStr);
+            return dbCategories;
+          }
+          return prev;
+        });
+      }
+
+      const dbExpenses = await fetchExpenses();
+      if (dbExpenses) {
+        setExpenses(prev => {
+          const dbStr = JSON.stringify(dbExpenses);
+          if (JSON.stringify(prev) !== dbStr) {
+            localStorage.setItem("tally_expenses", dbStr);
+            return dbExpenses;
+          }
+          return prev;
+        });
+      }
+
+      const dbSales = await fetchSales();
+      if (dbSales) {
+        setSales(prev => {
+          const dbStr = JSON.stringify(dbSales);
+          if (JSON.stringify(prev) !== dbStr) {
+            localStorage.setItem("tally_sales", dbStr);
+            return dbSales;
+          }
+          return prev;
+        });
+      }
+
+      const dbAdvances = await fetchStaffAdvances();
+      if (dbAdvances) {
+        setStaffAdvances(prev => {
+          const dbStr = JSON.stringify(dbAdvances);
+          if (JSON.stringify(prev) !== dbStr) {
+            localStorage.setItem("tally_staff_advances", dbStr);
+            return dbAdvances;
+          }
+          return prev;
+        });
+      }
+
+      const dbMomoLogs = await fetchMomoLogs();
+      if (dbMomoLogs) {
+        setMomoLogs(prev => {
+          const dbStr = JSON.stringify(dbMomoLogs);
+          if (JSON.stringify(prev) !== dbStr) {
+            localStorage.setItem("tally_momo_logs", dbStr);
+            return dbMomoLogs;
+          }
+          return prev;
+        });
+      }
+    } catch (err) {
+      console.error("Silent sync background error:", err);
+    }
+  };
+
+  // Real-time channel listener for instant synchronization
+  React.useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || !supabaseAutoSync || supabaseStatus !== "connected") return;
+
+    const channel = supabase
+      .channel("tally-realtime-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public" },
+        (payload) => {
+          console.log("Real-time change detected:", payload);
+          handleSilentSupabasePull();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabaseStatus, supabaseAutoSync]);
+
+  // Background interval polling fallback (runs every 6 seconds)
+  React.useEffect(() => {
+    if (!isSupabaseConfigured || !supabaseAutoSync || supabaseStatus !== "connected") return;
+
+    // Run once on status transition to connected
+    handleSilentSupabasePull();
+
+    const interval = setInterval(() => {
+      handleSilentSupabasePull();
+    }, 6000);
+
+    return () => clearInterval(interval);
+  }, [supabaseStatus, supabaseAutoSync]);
 
   // Sync with Supabase on mount
   React.useEffect(() => {
