@@ -1,5 +1,5 @@
 import React from "react";
-import { Product, StaffCode, ExpenseCategory, Sale, Expense } from "./types";
+import { Product, StaffCode, ExpenseCategory, Sale, Expense, StaffAdvance, MomoLog } from "./types";
 import { 
   INITIAL_PRODUCTS, 
   INITIAL_STAFF_CODES, 
@@ -12,6 +12,7 @@ import POS from "./components/POS";
 import Expenses from "./components/Expenses";
 import AdminPanel from "./components/AdminPanel";
 import POSReceiptModal from "./components/POSReceiptModal";
+import MomoPartnership from "./components/MomoPartnership";
 import { 
   isSupabaseConfigured,
   checkTablesExist,
@@ -21,6 +22,8 @@ import {
   downloadCategories as fetchExpenseCategories,
   downloadExpenses as fetchExpenses,
   downloadSales as fetchSales,
+  downloadStaffAdvances as fetchStaffAdvances,
+  downloadMomoLogs as fetchMomoLogs,
   upsertStoreSetting,
   saveProduct,
   deleteProductFromDb,
@@ -32,6 +35,10 @@ import {
   deleteExpenseFromDb,
   saveSale,
   deleteSaleFromDb,
+  saveStaffAdvance,
+  deleteStaffAdvanceFromDb,
+  saveMomoLog,
+  deleteMomoLogFromDb,
   fullSyncToSupabase,
   fullSyncFromSupabase
 } from "./supabase";
@@ -53,7 +60,7 @@ import {
 
 export default function App() {
   // Navigation State
-  const [activeTab, setActiveTab] = React.useState<"dashboard" | "pos" | "expenses" | "admin">("dashboard");
+  const [activeTab, setActiveTab] = React.useState<"dashboard" | "pos" | "expenses" | "admin" | "momo">("dashboard");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
   // Core Ledger States with Lazy Initializers (loads immediately from localStorage, then updates from Supabase)
@@ -82,6 +89,14 @@ export default function App() {
   const [expenses, setExpenses] = React.useState<Expense[]>(() => {
     const stored = localStorage.getItem("tally_expenses");
     return stored ? JSON.parse(stored) : INITIAL_EXPENSES;
+  });
+  const [staffAdvances, setStaffAdvances] = React.useState<StaffAdvance[]>(() => {
+    const stored = localStorage.getItem("tally_staff_advances");
+    return stored ? JSON.parse(stored) : [];
+  });
+  const [momoLogs, setMomoLogs] = React.useState<MomoLog[]>(() => {
+    const stored = localStorage.getItem("tally_momo_logs");
+    return stored ? JSON.parse(stored) : [];
   });
 
   // Supabase Sync Status State
@@ -130,7 +145,9 @@ export default function App() {
         staffCodes,
         categories,
         sales,
-        expenses
+        expenses,
+        staffAdvances,
+        momoLogs
       });
       if (success) {
         setSupabaseStatus("connected");
@@ -157,6 +174,8 @@ export default function App() {
       const dbCategories = await fetchExpenseCategories();
       const dbExpenses = await fetchExpenses();
       const dbSales = await fetchSales();
+      const dbAdvances = await fetchStaffAdvances();
+      const dbMomoLogs = await fetchMomoLogs();
 
       if (dbStore) {
         setStoreName(dbStore.storeName);
@@ -183,6 +202,14 @@ export default function App() {
       if (dbSales) {
          setSales(dbSales);
          localStorage.setItem("tally_sales", JSON.stringify(dbSales));
+      }
+      if (dbAdvances) {
+         setStaffAdvances(dbAdvances);
+         localStorage.setItem("tally_staff_advances", JSON.stringify(dbAdvances));
+      }
+      if (dbMomoLogs) {
+         setMomoLogs(dbMomoLogs);
+         localStorage.setItem("tally_momo_logs", JSON.stringify(dbMomoLogs));
       }
 
       setSupabaseStatus("connected");
@@ -285,6 +312,28 @@ export default function App() {
         } else if (sales.length > 0) {
           for (const s of sales) {
             await saveSale(s);
+          }
+        }
+
+        // 7. Fetch Staff Advances
+        const dbAdvances = await fetchStaffAdvances();
+        if (dbAdvances && dbAdvances.length > 0) {
+          setStaffAdvances(dbAdvances);
+          localStorage.setItem("tally_staff_advances", JSON.stringify(dbAdvances));
+        } else if (staffAdvances.length > 0) {
+          for (const a of staffAdvances) {
+            await saveStaffAdvance(a);
+          }
+        }
+
+        // 8. Fetch Momo Logs
+        const dbMomoLogs = await fetchMomoLogs();
+        if (dbMomoLogs && dbMomoLogs.length > 0) {
+          setMomoLogs(dbMomoLogs);
+          localStorage.setItem("tally_momo_logs", JSON.stringify(dbMomoLogs));
+        } else if (momoLogs.length > 0) {
+          for (const l of momoLogs) {
+            await saveMomoLog(l);
           }
         }
 
@@ -526,6 +575,76 @@ export default function App() {
     }
   };
 
+  const handleAddStaffAdvance = async (staffCode: string, amount: number, date: string, note: string) => {
+    const newAdvance: StaffAdvance = {
+      id: `adv-${Date.now()}`,
+      staffCode,
+      amount,
+      date,
+      note
+    };
+    const updated = [...staffAdvances, newAdvance];
+    setStaffAdvances(updated);
+    updateLocalStorage("tally_staff_advances", updated);
+    if (supabaseStatus === "connected" && supabaseAutoSync) {
+      await saveStaffAdvance(newAdvance);
+    }
+  };
+
+  const handleDeleteStaffAdvance = async (id: string) => {
+    const updated = staffAdvances.filter((a) => a.id !== id);
+    setStaffAdvances(updated);
+    updateLocalStorage("tally_staff_advances", updated);
+    if (supabaseStatus === "connected" && supabaseAutoSync) {
+      await deleteStaffAdvanceFromDb(id);
+    }
+  };
+
+  const handleUpdateStaffAdvance = async (id: string, updatedAdvance: StaffAdvance) => {
+    const updated = staffAdvances.map((a) => a.id === id ? updatedAdvance : a);
+    setStaffAdvances(updated);
+    updateLocalStorage("tally_staff_advances", updated);
+    if (supabaseStatus === "connected" && supabaseAutoSync) {
+      await saveStaffAdvance(updatedAdvance);
+    }
+  };
+
+  const handleAddMomoLog = async (logData: Omit<MomoLog, "id" | "totalSales">) => {
+    const newLog: MomoLog = {
+      ...logData,
+      id: `momo-${Date.now()}`,
+      totalSales: logData.soldQty * logData.unitPrice
+    };
+    const updated = [...momoLogs, newLog];
+    setMomoLogs(updated);
+    updateLocalStorage("tally_momo_logs", updated);
+    if (supabaseStatus === "connected" && supabaseAutoSync) {
+      await saveMomoLog(newLog);
+    }
+  };
+
+  const handleDeleteMomoLog = async (id: string) => {
+    const updated = momoLogs.filter((l) => l.id !== id);
+    setMomoLogs(updated);
+    updateLocalStorage("tally_momo_logs", updated);
+    if (supabaseStatus === "connected" && supabaseAutoSync) {
+      await deleteMomoLogFromDb(id);
+    }
+  };
+
+  const handleUpdateMomoLog = async (id: string, updatedLog: MomoLog) => {
+    const updatedObj = {
+      ...updatedLog,
+      totalSales: updatedLog.soldQty * updatedLog.unitPrice
+    };
+    const updated = momoLogs.map((l) => l.id === id ? updatedObj : l);
+    setMomoLogs(updated);
+    updateLocalStorage("tally_momo_logs", updated);
+    if (supabaseStatus === "connected" && supabaseAutoSync) {
+      await saveMomoLog(updatedObj);
+    }
+  };
+
   const handleUpdateStoreName = async (name: string) => {
     setStoreName(name);
     localStorage.setItem("tally_store_name", name);
@@ -655,6 +774,7 @@ export default function App() {
     { id: "dashboard" as const, label: "ড্যাশবোর্ড (হিসাব)", icon: LayoutDashboard },
     { id: "pos" as const, label: "নতুন বিক্রয় (POS)", icon: ShoppingCart },
     { id: "expenses" as const, label: "নতুন খরচ এন্ট্রি", icon: DollarSign },
+    { id: "momo" as const, label: "মোমো স্টক ও বিক্রয়", icon: Store },
     { id: "admin" as const, label: "এডমিন প্যানেল", icon: Lock },
   ];
 
@@ -913,6 +1033,10 @@ export default function App() {
               onAddExpense={handleAddExpense} 
               onDeleteExpense={handleDeleteExpense}
               onUpdateExpense={handleUpdateExpense}
+              staffAdvances={staffAdvances}
+              onAddStaffAdvance={handleAddStaffAdvance}
+              onDeleteStaffAdvance={handleDeleteStaffAdvance}
+              onUpdateStaffAdvance={handleUpdateStaffAdvance}
             />
           )}
  
@@ -954,6 +1078,15 @@ export default function App() {
               onUpdatePassword={handleUpdatePassword}
               onImportBackup={handleImportBackup}
               onExportBackup={handleExportBackup}
+            />
+          )}
+
+          {activeTab === "momo" && (
+            <MomoPartnership
+              momoLogs={momoLogs}
+              onAddMomoLog={handleAddMomoLog}
+              onDeleteMomoLog={handleDeleteMomoLog}
+              onUpdateMomoLog={handleUpdateMomoLog}
             />
           )}
         </div>

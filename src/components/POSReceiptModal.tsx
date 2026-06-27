@@ -104,6 +104,10 @@ export default function POSReceiptModal({
               <span>বিক্রয়কর্মী:</span>
               <span>${staffName}</span>
             </div>
+            <div class="flex justify-between">
+              <span>পেমেন্ট মাধ্যম:</span>
+              <span>${sale.paymentType === "Cash" ? "Cash (নগদ)" : sale.paymentType === "bKash" ? "bKash (বিকাশ)" : sale.paymentType === "Nogod" ? "Nogod (নগদ)" : sale.paymentType === "Rocket" ? "Rocket (রকেট)" : sale.paymentType === "Card" ? "Card (কার্ড)" : sale.paymentType || "Cash"} ${sale.paymentDetails ? `(${sale.paymentDetails})` : ""}</span>
+            </div>
           </div>
 
           <div class="border-t py-2">
@@ -230,6 +234,17 @@ export default function POSReceiptModal({
                 <span className="font-medium">বিক্রয়কর্মী:</span>
                 <span className="font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded text-[9px]">
                   {staffName}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-medium">পেমেন্ট মাধ্যম:</span>
+                <span className="font-bold text-slate-800 text-[9px]">
+                  {sale.paymentType === "Cash" ? "Cash (নগদ)" : 
+                   sale.paymentType === "bKash" ? "bKash (বিকাশ)" : 
+                   sale.paymentType === "Nogod" ? "Nogod (নগদ)" : 
+                   sale.paymentType === "Rocket" ? "Rocket (রকেট)" : 
+                   sale.paymentType === "Card" ? "Card (কার্ড)" : sale.paymentType || "Cash"} 
+                  {sale.paymentDetails ? ` (${sale.paymentDetails})` : ""}
                 </span>
               </div>
             </div>

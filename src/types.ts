@@ -49,6 +49,30 @@ export interface Sale {
   staffCode: string;
   receivedAmount: number;
   changeAmount: number;
+  paymentType?: "Cash" | "bKash" | "Nogod" | "Rocket" | "Card" | "Others" | string; // e.g. 'Cash', 'Bkash', 'Nogod', 'Rocket', 'Card', 'Others'
+  paymentDetails?: string;  // Custom text for Others
+}
+
+export interface StaffAdvance {
+  id: string;
+  staffCode: string;
+  amount: number;
+  date: string;
+  note: string;
+}
+
+export interface MomoLog {
+  id: string;
+  date: string;
+  receivedQty: number; // পিস গ্রহন
+  paidQty?: number;    // বিল পরিশোধকৃত পিস (নতুন সংযোজন)
+  purchasePrice?: number; // পার্টনারের রেট/প্রতি পিস কেনা দাম (৳) (নতুন সংযোজন)
+  soldQty: number;     // পিস বিক্রি
+  unitPrice: number;   // বিক্রয় মূল্য (প্রতি পিস)
+  totalSales: number;  // মোট বিক্রয় (soldQty * unitPrice)
+  expense: number;     // আনুষঙ্গিক খরচ
+  partnerSharePercent: number; // পার্টনারের অংশ (%) যেমন ৫০%
+  note: string;        // মন্তব্য
 }
 
 export interface StoreSettings {

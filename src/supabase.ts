@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { Product, StaffCode, ExpenseCategory, Sale, Expense } from "./types";
+import { Product, StaffCode, ExpenseCategory, Sale, Expense, StaffAdvance, MomoLog } from "./types";
 
 const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL || "";
 const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY || "";
@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS expense_categories (
   name TEXT NOT NULL
 );
 
--- ৫. sales টেবিল তৈরি করুন
+-- ৫. sales টেবিল তৈরি করুন (পেমেন্ট টাইপ সহ আপডেট করা হয়েছে)
 CREATE TABLE IF NOT EXISTS sales (
   id TEXT PRIMARY KEY,
   invoice_no TEXT NOT NULL,
@@ -50,7 +50,9 @@ CREATE TABLE IF NOT EXISTS sales (
   total NUMERIC NOT NULL,
   staff_code TEXT NOT NULL,
   received_amount NUMERIC NOT NULL,
-  change_amount NUMERIC NOT NULL
+  change_amount NUMERIC NOT NULL,
+  payment_type TEXT DEFAULT 'Cash',
+  payment_details TEXT
 );
 
 -- ৬. expenses টেবিল তৈরি করুন
@@ -63,20 +65,46 @@ CREATE TABLE IF NOT EXISTS expenses (
   staff_code TEXT NOT NULL
 );
 
--- ৭. সব টেবিলের RLS নিষ্ক্রিয় অথবা পাবলিক এক্সেস পলিসি তৈরি করুন
+-- ৭. staff_advances টেবিল তৈরি করুন (কর্মীদের দৈনিক টাকা নেয়ার হিসাব)
+CREATE TABLE IF NOT EXISTS staff_advances (
+  id TEXT PRIMARY KEY,
+  staff_code TEXT NOT NULL,
+  amount NUMERIC NOT NULL,
+  date TEXT NOT NULL,
+  note TEXT
+);
+
+-- ৮. momo_logs টেবিল তৈরি করুন (মোমো পার্টনারশিপ ব্যবসার হিসাব)
+CREATE TABLE IF NOT EXISTS momo_logs (
+  id TEXT PRIMARY KEY,
+  date TEXT NOT NULL,
+  received_qty INTEGER NOT NULL,
+  sold_qty INTEGER NOT NULL,
+  unit_price NUMERIC NOT NULL,
+  total_sales NUMERIC NOT NULL,
+  expense NUMERIC NOT NULL,
+  partner_share_percent NUMERIC NOT NULL,
+  note TEXT
+);
+
+-- ৯. সব টেবিলের RLS নিষ্ক্রিয় অথবা পাবলিক এক্সেস পলিসি তৈরি করুন
 ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE staff_codes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expense_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sales ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE staff_advances ENABLE ROW LEVEL SECURITY;
+ALTER TABLE momo_logs ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow public read-write for settings" ON settings FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public read-write for products" ON products FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public read-write for staff_codes" ON staff_codes FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public read-write for expense_categories" ON expense_categories FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public read-write for sales" ON sales FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Allow public read-write for expenses" ON expenses FOR ALL USING (true) WITH CHECK (true);`;
+CREATE POLICY "Allow public read-write for expenses" ON expenses FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read-write for staff_advances" ON staff_advances FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public read-write for momo_logs" ON momo_logs FOR ALL USING (true) WITH CHECK (true);`;
 
 // GRACEFUL SYNC HELPERS
 
@@ -131,6 +159,13 @@ export async function upsertStoreSetting(key: "tally_store_name" | "tally_admin_
 // 2. Products Sync
 export async function uploadProducts(products: Product[]) {
   if (!supabase) return;
+  const ids = products.map(p => p.id);
+  if (ids.length > 0) {
+    await supabase.from("products").delete().not("id", "in", `(${ids.join(",")})`);
+  } else {
+    await supabase.from("products").delete().neq("id", "");
+  }
+  if (products.length === 0) return;
   const formatted = products.map(p => ({
     id: p.id,
     name: p.name,
@@ -269,6 +304,14 @@ export async function deleteExpenseCategoryFromDb(id: string): Promise<void> {
 // 5. Sales Sync
 export async function uploadSales(sales: Sale[]) {
   if (!supabase) return;
+  const ids = sales.map(s => s.id);
+  if (ids.length > 0) {
+    await supabase.from("sales").delete().not("id", "in", `(${ids.join(",")})`);
+  } else {
+    await supabase.from("sales").delete().neq("id", "");
+  }
+  if (sales.length === 0) return;
+  
   // Deep clone and format objects for JSON compatibility
   const formatted = sales.map(s => ({
     id: s.id,
@@ -280,7 +323,9 @@ export async function uploadSales(sales: Sale[]) {
     total: s.total,
     staff_code: s.staffCode,
     received_amount: s.receivedAmount,
-    change_amount: s.changeAmount
+    change_amount: s.changeAmount,
+    payment_type: s.paymentType || "Cash",
+    payment_details: s.paymentDetails || ""
   }));
   const { error } = await supabase.from("sales").upsert(formatted);
   if (error) throw error;
@@ -300,7 +345,9 @@ export async function downloadSales(): Promise<Sale[] | null> {
     total: Number(row.total),
     staffCode: row.staff_code,
     receivedAmount: Number(row.received_amount),
-    changeAmount: Number(row.change_amount)
+    changeAmount: Number(row.change_amount),
+    paymentType: row.payment_type || "Cash",
+    paymentDetails: row.payment_details || ""
   }));
 }
 
@@ -317,7 +364,9 @@ export async function saveSale(sale: Sale): Promise<void> {
       total: sale.total,
       staff_code: sale.staffCode,
       received_amount: sale.receivedAmount,
-      change_amount: sale.changeAmount
+      change_amount: sale.changeAmount,
+      payment_type: sale.paymentType || "Cash",
+      payment_details: sale.paymentDetails || ""
     });
     if (error) throw error;
   } catch (err) {
@@ -338,6 +387,14 @@ export async function deleteSaleFromDb(id: string): Promise<void> {
 // 6. Expenses Sync
 export async function uploadExpenses(expenses: Expense[]) {
   if (!supabase) return;
+  const ids = expenses.map(e => e.id);
+  if (ids.length > 0) {
+    await supabase.from("expenses").delete().not("id", "in", `(${ids.join(",")})`);
+  } else {
+    await supabase.from("expenses").delete().neq("id", "");
+  }
+  if (expenses.length === 0) return;
+
   const formatted = expenses.map(e => ({
     id: e.id,
     category: e.category,
@@ -391,6 +448,168 @@ export async function deleteExpenseFromDb(id: string): Promise<void> {
   }
 }
 
+// 7. Staff Advances Sync
+export async function uploadStaffAdvances(advances: StaffAdvance[]) {
+  if (!supabase) return;
+  const ids = advances.map(a => a.id);
+  if (ids.length > 0) {
+    await supabase.from("staff_advances").delete().not("id", "in", `(${ids.join(",")})`);
+  } else {
+    await supabase.from("staff_advances").delete().neq("id", "");
+  }
+  if (advances.length === 0) return;
+
+  const formatted = advances.map(a => ({
+    id: a.id,
+    staff_code: a.staffCode,
+    amount: a.amount,
+    date: a.date,
+    note: a.note || ""
+  }));
+  const { error } = await supabase.from("staff_advances").upsert(formatted);
+  if (error) throw error;
+}
+
+export async function downloadStaffAdvances(): Promise<StaffAdvance[] | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase.from("staff_advances").select("*");
+  if (error) return null;
+  return (data || []).map(row => ({
+    id: row.id,
+    staffCode: row.staff_code,
+    amount: Number(row.amount),
+    date: row.date,
+    note: row.note || ""
+  }));
+}
+
+export async function saveStaffAdvance(advance: StaffAdvance): Promise<void> {
+  if (!supabase) return;
+  try {
+    const { error } = await supabase.from("staff_advances").upsert({
+      id: advance.id,
+      staff_code: advance.staffCode,
+      amount: advance.amount,
+      date: advance.date,
+      note: advance.note || ""
+    });
+    if (error) throw error;
+  } catch (err) {
+    console.error("Error saving staff advance:", err);
+  }
+}
+
+export async function deleteStaffAdvanceFromDb(id: string): Promise<void> {
+  if (!supabase) return;
+  try {
+    const { error } = await supabase.from("staff_advances").delete().eq("id", id);
+    if (error) throw error;
+  } catch (err) {
+    console.error("Error deleting staff advance:", err);
+  }
+}
+
+// 8. Momo Logs Sync
+export async function uploadMomoLogs(logs: MomoLog[]) {
+  if (!supabase) return;
+  const ids = logs.map(l => l.id);
+  if (ids.length > 0) {
+    await supabase.from("momo_logs").delete().not("id", "in", `(${ids.join(",")})`);
+  } else {
+    await supabase.from("momo_logs").delete().neq("id", "");
+  }
+  if (logs.length === 0) return;
+
+  const formatted = logs.map(l => {
+    const meta = { pq: l.paidQty || 0, pp: l.purchasePrice || 0 };
+    const cleanNote = (l.note || "").replace(/\s*\[META:\{.*?\}\]\s*$/, "");
+    const noteWithMeta = `${cleanNote} [META:${JSON.stringify(meta)}]`.trim();
+
+    return {
+      id: l.id,
+      date: l.date,
+      received_qty: l.receivedQty,
+      sold_qty: l.soldQty,
+      unit_price: l.unitPrice,
+      total_sales: l.totalSales,
+      expense: l.expense,
+      partner_share_percent: l.partnerSharePercent,
+      note: noteWithMeta
+    };
+  });
+  const { error } = await supabase.from("momo_logs").upsert(formatted);
+  if (error) throw error;
+}
+
+export async function downloadMomoLogs(): Promise<MomoLog[] | null> {
+  if (!supabase) return null;
+  const { data, error } = await supabase.from("momo_logs").select("*");
+  if (error) return null;
+  return (data || []).map(row => {
+    const fullNote = row.note || "";
+    const match = fullNote.match(/\[META:(\{.*?\})\]/);
+    let paidQty = 0;
+    let purchasePrice = 0;
+    let note = fullNote;
+    if (match) {
+      try {
+        const meta = JSON.parse(match[1]);
+        note = fullNote.replace(/\s*\[META:\{.*?\}\]\s*$/, "").trim();
+        paidQty = Number(meta.pq) || 0;
+        purchasePrice = Number(meta.pp) || 0;
+      } catch (e) {}
+    }
+
+    return {
+      id: row.id,
+      date: row.date,
+      receivedQty: Number(row.received_qty),
+      soldQty: Number(row.sold_qty),
+      unitPrice: Number(row.unit_price),
+      totalSales: Number(row.total_sales),
+      expense: Number(row.expense || 0),
+      partnerSharePercent: Number(row.partner_share_percent || 50),
+      note: note,
+      paidQty,
+      purchasePrice
+    };
+  });
+}
+
+export async function saveMomoLog(log: MomoLog): Promise<void> {
+  if (!supabase) return;
+  try {
+    const meta = { pq: log.paidQty || 0, pp: log.purchasePrice || 0 };
+    const cleanNote = (log.note || "").replace(/\s*\[META:\{.*?\}\]\s*$/, "");
+    const noteWithMeta = `${cleanNote} [META:${JSON.stringify(meta)}]`.trim();
+
+    const { error } = await supabase.from("momo_logs").upsert({
+      id: log.id,
+      date: log.date,
+      received_qty: log.receivedQty,
+      sold_qty: log.soldQty,
+      unit_price: log.unitPrice,
+      total_sales: log.totalSales,
+      expense: log.expense,
+      partner_share_percent: log.partnerSharePercent,
+      note: noteWithMeta
+    });
+    if (error) throw error;
+  } catch (err) {
+    console.error("Error saving momo log:", err);
+  }
+}
+
+export async function deleteMomoLogFromDb(id: string): Promise<void> {
+  if (!supabase) return;
+  try {
+    const { error } = await supabase.from("momo_logs").delete().eq("id", id);
+    if (error) throw error;
+  } catch (err) {
+    console.error("Error deleting momo log:", err);
+  }
+}
+
 // FULL TWO-WAY SYNC CORE LOGIC
 export async function fullSyncToSupabase(data: {
   storeName: string;
@@ -400,6 +619,8 @@ export async function fullSyncToSupabase(data: {
   categories: ExpenseCategory[];
   sales: Sale[];
   expenses: Expense[];
+  staffAdvances: StaffAdvance[];
+  momoLogs: MomoLog[];
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const tableCheck = await checkTablesExist();
@@ -414,6 +635,8 @@ export async function fullSyncToSupabase(data: {
     await uploadCategories(data.categories);
     await uploadSales(data.sales);
     await uploadExpenses(data.expenses);
+    await uploadStaffAdvances(data.staffAdvances);
+    await uploadMomoLogs(data.momoLogs);
 
     return { success: true };
   } catch (err: any) {
@@ -432,6 +655,8 @@ export async function fullSyncFromSupabase(): Promise<{
     categories?: ExpenseCategory[];
     sales?: Sale[];
     expenses?: Expense[];
+    staffAdvances?: StaffAdvance[];
+    momoLogs?: MomoLog[];
   };
 }> {
   try {
@@ -446,6 +671,8 @@ export async function fullSyncFromSupabase(): Promise<{
     const categories = await downloadCategories();
     const sales = await downloadSales();
     const expenses = await downloadExpenses();
+    const staffAdvances = await downloadStaffAdvances();
+    const momoLogs = await downloadMomoLogs();
 
     return {
       success: true,
@@ -457,6 +684,8 @@ export async function fullSyncFromSupabase(): Promise<{
         categories: categories || undefined,
         sales: sales || undefined,
         expenses: expenses || undefined,
+        staffAdvances: staffAdvances || undefined,
+        momoLogs: momoLogs || undefined,
       },
     };
   } catch (err: any) {

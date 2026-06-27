@@ -42,6 +42,49 @@ export default function Dashboard({ sales, expenses, storeName, onNavigate }: Da
   const totalExpenses = filteredExpenses.reduce((acc, exp) => acc + exp.amount, 0);
   const balance = totalSales - totalExpenses;
 
+  // Calculate breakdown for payments in a given array of sales
+  const calculatePaymentTypeBreakdown = (salesList: Sale[]) => {
+    const breakdown = {
+      Cash: 0,
+      bKash: 0,
+      Nogod: 0,
+      Rocket: 0,
+      Card: 0,
+      Others: 0
+    };
+    salesList.forEach((sale) => {
+      const pType = sale.paymentType || "Cash";
+      if (pType in breakdown) {
+        breakdown[pType as keyof typeof breakdown] += sale.total;
+      } else {
+        breakdown.Others += sale.total;
+      }
+    });
+    return breakdown;
+  };
+
+  const getSalesForPeriod = (period: "today" | "week" | "month") => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return sales.filter((item) => {
+      const itemDate = new Date(item.date);
+      if (period === "today") {
+        return itemDate >= startOfToday;
+      } else if (period === "week") {
+        const oneWeekAgo = new Date(startOfToday.getTime() - 7 * 24 * 60 * 60 * 1000);
+        return itemDate >= oneWeekAgo;
+      } else if (period === "month") {
+        const oneMonthAgo = new Date(startOfToday.getFullYear(), startOfToday.getMonth() - 1, startOfToday.getDate());
+        return itemDate >= oneMonthAgo;
+      }
+      return true;
+    });
+  };
+
+  const todayPaymentBreakdown = calculatePaymentTypeBreakdown(getSalesForPeriod("today"));
+  const weekPaymentBreakdown = calculatePaymentTypeBreakdown(getSalesForPeriod("week"));
+  const monthPaymentBreakdown = calculatePaymentTypeBreakdown(getSalesForPeriod("month"));
+
   // Combine into a single unified transaction history feed
   const unifiedFeed = [
     ...filteredSales.map((sale) => ({
@@ -193,6 +236,63 @@ export default function Dashboard({ sales, expenses, storeName, onNavigate }: Da
           </div>
         </div>
 
+      </div>
+
+      {/* Payment Channels Report */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-xs">
+        <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+          <Landmark className="w-5 h-5 text-blue-600" />
+          <div>
+            <h3 className="font-bold text-slate-800 text-sm">কোথায় কত টাকা গ্রহন করা হলো (পেমেন্ট চ্যানেল রিপোর্ট)</h3>
+            <p className="text-xs text-slate-400 mt-1">ক্যাশ কাউন্টার, মোবাইল ব্যাংকিং ও কার্ডে প্রাপ্ত মোট হিসেব</p>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto mt-4">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase bg-slate-50/50">
+                <th className="py-3 px-3">পেমেন্ট মাধ্যম</th>
+                <th className="py-3 px-3 text-right">আজকের হিসাব (Today)</th>
+                <th className="py-3 px-3 text-right">৭ দিনের হিসাব (This Week)</th>
+                <th className="py-3 px-3 text-right">৩০ দিনের হিসাব (This Month)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-xs">
+              {[
+                { key: "Cash", name: "Cash (নগদ টাকা)", color: "text-slate-800 bg-slate-100" },
+                { key: "bKash", name: "bKash (বিকাশ)", color: "text-pink-700 bg-pink-50" },
+                { key: "Nogod", name: "Nogod (নগদ)", color: "text-orange-700 bg-orange-50" },
+                { key: "Rocket", name: "Rocket (রকেট)", color: "text-purple-700 bg-purple-50" },
+                { key: "Card", name: "Card (কার্ড)", color: "text-indigo-700 bg-indigo-50" },
+                { key: "Others", name: "Others (অন্যান্য)", color: "text-teal-700 bg-teal-50" },
+              ].map((channel) => {
+                const todayVal = todayPaymentBreakdown[channel.key as keyof typeof todayPaymentBreakdown] || 0;
+                const weekVal = weekPaymentBreakdown[channel.key as keyof typeof weekPaymentBreakdown] || 0;
+                const monthVal = monthPaymentBreakdown[channel.key as keyof typeof monthPaymentBreakdown] || 0;
+
+                return (
+                  <tr key={channel.key} className="hover:bg-slate-50/40 transition-colors">
+                    <td className="py-3.5 px-3 font-semibold text-slate-700 flex items-center gap-2">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${channel.color}`}>
+                        {channel.name}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-3 text-right font-bold text-slate-800">
+                      {todayVal > 0 ? formatCurrency(todayVal) : "৳০"}
+                    </td>
+                    <td className="py-3.5 px-3 text-right font-bold text-slate-800">
+                      {weekVal > 0 ? formatCurrency(weekVal) : "৳০"}
+                    </td>
+                    <td className="py-3.5 px-3 text-right font-bold text-slate-800">
+                      {monthVal > 0 ? formatCurrency(monthVal) : "৳০"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Analytics Visualizations (Two Columns on Desktop) */}

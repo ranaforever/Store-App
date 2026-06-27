@@ -3,8 +3,10 @@ import { Product, StaffCode, CartItem, Sale } from "../types";
 import { formatCurrency } from "../utils";
 import { 
   Search, Plus, Minus, Trash2, ShoppingCart, 
-  CheckCircle, HelpCircle, ShieldCheck, Tag, Eye, EyeOff
+  CheckCircle, HelpCircle, ShieldCheck, Tag, Eye, EyeOff,
+  Keyboard
 } from "lucide-react";
+import NumericKeypad from "./NumericKeypad";
 
 interface POSProps {
   products: Product[];
@@ -24,6 +26,39 @@ export default function POS({ products, staffCodes, onSaleComplete }: POSProps) 
   const [receivedAmount, setReceivedAmount] = React.useState<number>(0);
   const [isMobileCartOpen, setIsMobileCartOpen] = React.useState(false);
   const [errorMsg, setErrorMsg] = React.useState("");
+  const [paymentType, setPaymentType] = React.useState<"Cash" | "bKash" | "Nogod" | "Rocket" | "Card" | "Others">("Cash");
+  const [paymentDetails, setPaymentDetails] = React.useState("");
+
+  // Keypad State
+  const [keypadOpen, setKeypadOpen] = React.useState(false);
+  const [keypadTitle, setKeypadTitle] = React.useState("");
+  const [keypadValue, setKeypadValue] = React.useState<number>(0);
+  const [keypadField, setKeypadField] = React.useState("");
+  const [keypadCartItemId, setKeypadCartItemId] = React.useState<string | null>(null);
+
+  const triggerKeypad = (field: string, title: string, currentVal: number, cartItemId: string | null = null) => {
+    setKeypadField(field);
+    setKeypadTitle(title);
+    setKeypadValue(currentVal);
+    setKeypadCartItemId(cartItemId);
+    setKeypadOpen(true);
+  };
+
+  const handleKeypadConfirm = (value: number) => {
+    if (keypadField === "quantity" && keypadCartItemId) {
+      setCart((prevCart) =>
+        prevCart.map((item) =>
+          item.product.id === keypadCartItemId
+            ? { ...item, quantity: Math.max(1, Math.floor(value)) }
+            : item
+        )
+      );
+    } else if (keypadField === "discount") {
+      setDiscount(Math.max(0, value));
+    } else if (keypadField === "receivedAmount") {
+      setReceivedAmount(Math.max(0, value));
+    }
+  };
 
   // Product Filter
   const filteredProducts = products.filter((product) =>
@@ -118,6 +153,8 @@ export default function POS({ products, staffCodes, onSaleComplete }: POSProps) 
       staffCode: selectedStaff.toUpperCase(),
       receivedAmount,
       changeAmount,
+      paymentType,
+      paymentDetails,
     };
 
     // Callback to App
@@ -128,6 +165,8 @@ export default function POS({ products, staffCodes, onSaleComplete }: POSProps) 
     setDiscount(0);
     setReceivedAmount(0);
     setSelectedStaff("");
+    setPaymentType("Cash");
+    setPaymentDetails("");
     setIsMobileCartOpen(false);
   };
 
@@ -225,17 +264,24 @@ export default function POS({ products, staffCodes, onSaleComplete }: POSProps) 
                 {/* Qty Controllers */}
                 <div className="flex items-center bg-white rounded-lg border border-slate-100 p-1 gap-1">
                   <button
+                    type="button"
                     onClick={() => updateQuantity(item.product.id, -1)}
-                    className="p-1 hover:bg-slate-50 text-slate-500 rounded"
+                    className="p-1 hover:bg-slate-50 text-slate-500 rounded cursor-pointer"
                   >
                     <Minus className="w-3.5 h-3.5" />
                   </button>
-                  <span className="text-xs font-bold px-1.5 min-w-[20px] text-center text-slate-800">
-                    {item.quantity}
-                  </span>
                   <button
+                    type="button"
+                    onClick={() => triggerKeypad("quantity", `${item.product.name} এর পরিমাণ`, item.quantity, item.product.id)}
+                    className="text-xs font-extrabold px-1.5 min-w-[24px] text-center text-blue-600 hover:bg-blue-50 rounded py-0.5 transition-colors cursor-pointer"
+                    title="কাস্টম কীবোর্ড দিয়ে ইনপুট"
+                  >
+                    {item.quantity}
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => updateQuantity(item.product.id, 1)}
-                    className="p-1 hover:bg-slate-50 text-slate-500 rounded"
+                    className="p-1 hover:bg-slate-50 text-slate-500 rounded cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                   </button>
@@ -319,15 +365,25 @@ export default function POS({ products, staffCodes, onSaleComplete }: POSProps) 
                 ফ্ল্যাট ছাড়
               </span>
             </div>
-            <input
-              type="number"
-              min="0"
-              max={subtotal}
-              placeholder="0"
-              value={discount || ""}
-              onChange={(e) => setDiscount(Math.max(0, parseInt(e.target.value, 10) || 0))}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
-            />
+            <div className="flex gap-1.5">
+              <input
+                type="number"
+                min="0"
+                max={subtotal}
+                placeholder="0"
+                value={discount || ""}
+                onChange={(e) => setDiscount(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                className="w-full flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+              />
+              <button
+                type="button"
+                onClick={() => triggerKeypad("discount", "ডিসকাউন্ট বা ছাড় (Discount Amount)", discount)}
+                className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl border border-blue-200 cursor-pointer text-xs flex items-center justify-center transition-all"
+                title="কাস্টম কীবোর্ড"
+              >
+                <Keyboard className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {/* Money Maths */}
@@ -348,6 +404,45 @@ export default function POS({ products, staffCodes, onSaleComplete }: POSProps) 
             </div>
           </div>
 
+          {/* Payment Type Selection */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-slate-500 block">পেমেন্ট টাইপ (Payment Type) *</label>
+            <select
+              value={paymentType}
+              onChange={(e) => {
+                const val = e.target.value as any;
+                setPaymentType(val);
+                if (val === "Cash") {
+                  setPaymentDetails("");
+                }
+              }}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+            >
+              <option value="Cash">Cash (নগদ)</option>
+              <option value="bKash">bKash (বিকাশ)</option>
+              <option value="Nogod">Nogod (নগদ অ্যাপ)</option>
+              <option value="Rocket">Rocket (রকেট)</option>
+              <option value="Card">Card (কার্ড)</option>
+              <option value="Others">Others (অন্যান্য)</option>
+            </select>
+          </div>
+
+          {paymentType !== "Cash" && (
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-500 block">
+                {paymentType === "Others" ? "অন্যান্য পেমেন্টের বিবরণী লিখুন *" : "লেনদেন বিবরণী / ট্রানজেকশন ID (ঐচ্ছিক)"}
+              </label>
+              <input
+                type="text"
+                required={paymentType === "Others"}
+                placeholder={paymentType === "Others" ? "যেমন: ব্যাংক ট্রান্সফার, কুরিয়ার পেমেন্ট..." : "যেমন: TxnID বা কার্ডের শেষ ৪ ডিজিট..."}
+                value={paymentDetails}
+                onChange={(e) => setPaymentDetails(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+              />
+            </div>
+          )}
+
           {/* Paid Received Amount */}
           <div className="space-y-1.5">
             <div className="flex justify-between items-center">
@@ -361,15 +456,25 @@ export default function POS({ products, staffCodes, onSaleComplete }: POSProps) 
                 বরাবর পরিশোধ (Exact)
               </button>
             </div>
-            <input
-              type="number"
-              min="0"
-              required
-              placeholder="0"
-              value={receivedAmount || ""}
-              onChange={(e) => setReceivedAmount(Math.max(0, parseInt(e.target.value, 10) || 0))}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
-            />
+            <div className="flex gap-1.5">
+              <input
+                type="number"
+                min="0"
+                required
+                placeholder="0"
+                value={receivedAmount || ""}
+                onChange={(e) => setReceivedAmount(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                className="w-full flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+              />
+              <button
+                type="button"
+                onClick={() => triggerKeypad("receivedAmount", "গৃহীত নগদ টাকা (Received Cash)", receivedAmount)}
+                className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl border border-blue-200 cursor-pointer text-xs flex items-center justify-center transition-all"
+                title="কাস্টম কীবোর্ড"
+              >
+                <Keyboard className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {/* Change Math return */}
@@ -466,15 +571,24 @@ export default function POS({ products, staffCodes, onSaleComplete }: POSProps) 
                     {/* Qty Controllers */}
                     <div className="flex items-center bg-white rounded-lg border border-slate-100 p-1 gap-1">
                       <button
+                        type="button"
                         onClick={() => updateQuantity(item.product.id, -1)}
-                        className="p-1 hover:bg-slate-50 text-slate-500 rounded"
+                        className="p-1 hover:bg-slate-50 text-slate-500 rounded cursor-pointer"
                       >
                         <Minus className="w-3 h-3" />
                       </button>
-                      <span className="text-xs font-bold px-1.5 text-slate-800">{item.quantity}</span>
                       <button
+                        type="button"
+                        onClick={() => triggerKeypad("quantity", `${item.product.name} এর পরিমাণ`, item.quantity, item.product.id)}
+                        className="text-xs font-extrabold px-1.5 min-w-[24px] text-center text-blue-600 hover:bg-blue-50 rounded py-0.5 transition-colors cursor-pointer"
+                        title="কাস্টম কীবোর্ড দিয়ে ইনপুট"
+                      >
+                        {item.quantity}
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => updateQuantity(item.product.id, 1)}
-                        className="p-1 hover:bg-slate-50 text-slate-500 rounded"
+                        className="p-1 hover:bg-slate-50 text-slate-500 rounded cursor-pointer"
                       >
                         <Plus className="w-3 h-3" />
                       </button>
@@ -549,15 +663,25 @@ export default function POS({ products, staffCodes, onSaleComplete }: POSProps) 
 
               <div className="space-y-1.5">
                 <label className="text-[11px] font-bold text-slate-500 block">ডিসকাউন্ট বা ছাড় (৳)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max={subtotal}
-                  placeholder="0"
-                  value={discount || ""}
-                  onChange={(e) => setDiscount(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-semibold focus:outline-none"
-                />
+                <div className="flex gap-1.5">
+                  <input
+                    type="number"
+                    min="0"
+                    max={subtotal}
+                    placeholder="0"
+                    value={discount || ""}
+                    onChange={(e) => setDiscount(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    className="w-full flex-1 px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-semibold focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => triggerKeypad("discount", "ডিসকাউন্ট বা ছাড় (Discount Amount)", discount)}
+                    className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl border border-blue-200 cursor-pointer text-xs flex items-center justify-center transition-all"
+                    title="কাস্টম কীবোর্ড"
+                  >
+                    <Keyboard className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               <div className="bg-slate-50 p-4 rounded-2xl space-y-2 border border-slate-100">
@@ -577,26 +701,75 @@ export default function POS({ products, staffCodes, onSaleComplete }: POSProps) 
                 </div>
               </div>
 
+              {/* Payment Type Selection */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-500 block">পেমেন্ট টাইপ (Payment Type) *</label>
+                <select
+                  value={paymentType}
+                  onChange={(e) => {
+                    const val = e.target.value as any;
+                    setPaymentType(val);
+                    if (val === "Cash") {
+                      setPaymentDetails("");
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                >
+                  <option value="Cash">Cash (নগদ)</option>
+                  <option value="bKash">bKash (বিকাশ)</option>
+                  <option value="Nogod">Nogod (নগদ অ্যাপ)</option>
+                  <option value="Rocket">Rocket (রকেট)</option>
+                  <option value="Card">Card (কার্ড)</option>
+                  <option value="Others">Others (অন্যান্য)</option>
+                </select>
+              </div>
+
+              {paymentType !== "Cash" && (
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-500 block">
+                    {paymentType === "Others" ? "অন্যান্য পেমেন্টের বিবরণী লিখুন *" : "লেনদেন বিবরণী / ট্রানজেকশন ID (ঐচ্ছিক)"}
+                  </label>
+                  <input
+                    type="text"
+                    required={paymentType === "Others"}
+                    placeholder={paymentType === "Others" ? "যেমন: ব্যাংক ট্রান্সফার, কুরিয়ার পেমেন্ট..." : "যেমন: TxnID বা কার্ডের শেষ ৪ ডিজিট..."}
+                    value={paymentDetails}
+                    onChange={(e) => setPaymentDetails(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                  />
+                </div>
+              )}
+
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center">
                   <label className="text-[11px] font-bold text-slate-500 block">গৃহীত নগদ টাকা (৳) *</label>
                   <button
                     type="button"
                     onClick={handleQuickExactPayment}
-                    className="text-[10px] text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded-sm"
+                    className="text-[10px] text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded-sm cursor-pointer"
                   >
                     Exact Pay
                   </button>
                 </div>
-                <input
-                  type="number"
-                  min="0"
-                  required
-                  placeholder="0"
-                  value={receivedAmount || ""}
-                  onChange={(e) => setReceivedAmount(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold focus:outline-none focus:border-blue-500"
-                />
+                <div className="flex gap-1.5">
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    placeholder="0"
+                    value={receivedAmount || ""}
+                    onChange={(e) => setReceivedAmount(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    className="w-full flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold focus:outline-none focus:border-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => triggerKeypad("receivedAmount", "গৃহীত নগদ টাকা (Received Cash)", receivedAmount)}
+                    className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl border border-blue-200 cursor-pointer text-xs flex items-center justify-center transition-all"
+                    title="কাস্টম কীবোর্ড"
+                  >
+                    <Keyboard className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               {receivedAmount > total && (
@@ -617,6 +790,16 @@ export default function POS({ products, staffCodes, onSaleComplete }: POSProps) 
           </div>
         </div>
       )}
+
+      {/* Custom Keypad Component */}
+      <NumericKeypad
+        isOpen={keypadOpen}
+        onClose={() => setKeypadOpen(false)}
+        title={keypadTitle}
+        initialValue={keypadValue}
+        onConfirm={handleKeypadConfirm}
+        isDecimal={false}
+      />
 
     </div>
   );
