@@ -24,6 +24,9 @@ export default function MomoPartnership({
   onDeleteMomoLog,
   onUpdateMomoLog,
 }: MomoPartnershipProps) {
+  // Entry Tab State ("receive" = মোমো গ্রহণ ও বিল পরিশোধ, "sell" = মোমো বিক্রয়)
+  const [entryTab, setEntryTab] = React.useState<"receive" | "sell">("receive");
+
   // Form State
   const [date, setDate] = React.useState(new Date().toISOString().slice(0, 10));
   const [receivedQty, setReceivedQty] = React.useState<number>(0);
@@ -117,6 +120,7 @@ export default function MomoPartnership({
     let sold = 0;
     let totalSales = 0;
     let expenseSum = 0;
+    let netProfitSum = 0;
 
     filteredLogsByPeriod.forEach((l) => {
       received += l.receivedQty || 0;
@@ -125,11 +129,15 @@ export default function MomoPartnership({
       expenseSum += l.expense || 0;
 
       const pq = l.paidQty !== undefined ? l.paidQty : l.receivedQty; // fallback
-      const pp = l.purchasePrice !== undefined ? l.purchasePrice : 8; // fallback
+      const pp = l.purchasePrice !== undefined && l.purchasePrice > 0 ? l.purchasePrice : 8; // fallback
 
       paid += pq;
       totalBillVal += (l.receivedQty || 0) * pp;
       totalPaidVal += pq * pp;
+
+      const salesVal = (l.soldQty || 0) * (l.unitPrice || 0);
+      const rowNetProfit = salesVal - (l.expense || 0) - ((l.soldQty || 0) * pp);
+      netProfitSum += rowNetProfit;
     });
 
     const dueQty = received - paid;
@@ -147,7 +155,7 @@ export default function MomoPartnership({
       totalSales,
       expenseSum,
       remainingStock,
-      netProfit: totalSales - expenseSum - (sold * 8) // fallback purchase price estimate
+      netProfit: netProfitSum
     };
   }, [filteredLogsByPeriod]);
 
@@ -168,7 +176,7 @@ export default function MomoPartnership({
       totalExpenses += log.expense || 0;
 
       const pq = log.paidQty !== undefined ? log.paidQty : log.receivedQty;
-      const pp = log.purchasePrice !== undefined ? log.purchasePrice : 8;
+      const pp = log.purchasePrice !== undefined && log.purchasePrice > 0 ? log.purchasePrice : 8;
 
       totalPaidQty += pq;
       grandBillVal += (log.receivedQty || 0) * pp;
@@ -203,56 +211,82 @@ export default function MomoPartnership({
     setErrorMsg("");
     setSuccess(false);
 
-    if (receivedQty < 0) {
-      setErrorMsg("গ্রহন করা পরিমাণ অবশ্যই ০ বা তার বেশি হতে হবে!");
-      return;
-    }
-    if (paidQty < 0) {
-      setErrorMsg("পরিশোধকৃত মোমো পরিমাণ অবশ্যই ০ বা তার বেশি হতে হবে!");
-      return;
-    }
-    if (paidQty > receivedQty) {
-      setErrorMsg("পরিশোধকৃত বিলের পিস গ্রহনের পরিমাণের চেয়ে বেশি হতে পারে না!");
-      return;
-    }
-    if (soldQty < 0) {
-      setErrorMsg("বিক্রি করা পরিমাণ ০ বা তার বেশি হতে হবে!");
-      return;
-    }
-    if (soldQty > receivedQty) {
-      setErrorMsg("বিক্রির পরিমাণ গ্রহনের পরিমাণের চেয়ে বেশি হতে পারে না!");
-      return;
-    }
-    if (purchasePrice <= 0) {
-      setErrorMsg("কেনার দাম বা রেট অবশ্যই ০ এর বেশি হতে হবে!");
-      return;
-    }
-    if (unitPrice <= 0) {
-      setErrorMsg("বিক্রয় মূল্য অবশ্যই ০ এর চেয়ে বড় হতে হবে!");
-      return;
-    }
+    if (entryTab === "receive") {
+      if (receivedQty < 0) {
+        setErrorMsg("গ্রহণ করা পরিমাণ অবশ্যই ০ বা ইতিবাচক হতে হবে!");
+        return;
+      }
+      if (paidQty < 0) {
+        setErrorMsg("পরিশোধকৃত মোমো পরিমাণ অবশ্যই ০ বা ইতিবাচক হতে হবে!");
+        return;
+      }
+      if (receivedQty === 0 && paidQty === 0) {
+        setErrorMsg("দয়া করে গ্রহণ পরিমাণ অথবা পরিশোধ পরিমাণ এন্ট্রি করুন!");
+        return;
+      }
+      if (paidQty > receivedQty) {
+        setErrorMsg("পরিশোধকৃত বিলের পিস গ্রহনের পরিমাণের চেয়ে বেশি হতে পারে না!");
+        return;
+      }
+      if (purchasePrice <= 0) {
+        setErrorMsg("কেনার দাম বা রেট অবশ্যই ০ এর বেশি হতে হবে!");
+        return;
+      }
 
-    onAddMomoLog({
-      date: new Date(date).toISOString(),
-      receivedQty,
-      paidQty,
-      purchasePrice,
-      soldQty,
-      unitPrice,
-      expense,
-      partnerSharePercent: 0, // Hardcoded 0 since partnership share is removed
-      note,
-    });
+      onAddMomoLog({
+        date: new Date(date).toISOString(),
+        receivedQty,
+        paidQty,
+        purchasePrice,
+        soldQty: 0,
+        unitPrice: 0,
+        expense: 0,
+        partnerSharePercent: 0,
+        note,
+      });
 
-    // Reset fields
-    setReceivedQty(0);
-    setPaidQty(0);
-    setSoldQty(0);
-    setExpense(0);
-    setNote("");
-    setDate(new Date().toISOString().slice(0, 10));
-    setSuccess(true);
-    setTimeout(() => setSuccess(false), 4000);
+      // Reset fields
+      setReceivedQty(0);
+      setPaidQty(0);
+      setNote("");
+      setDate(new Date().toISOString().slice(0, 10));
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 4000);
+
+    } else { // "sell"
+      if (soldQty <= 0) {
+        setErrorMsg("বিক্রি করা পরিমাণ অবশ্যই ০ এর বেশি হতে হবে!");
+        return;
+      }
+      if (unitPrice <= 0) {
+        setErrorMsg("বিক্রয় মূল্য অবশ্যই ০ এর চেয়ে বড় হতে হবে!");
+        return;
+      }
+      if (expense < 0) {
+        setErrorMsg("আনুষঙ্গিক খরচ অবশ্যই ০ বা তার বেশি হতে হবে!");
+        return;
+      }
+
+      onAddMomoLog({
+        date: new Date(date).toISOString(),
+        receivedQty: 0,
+        paidQty: 0,
+        purchasePrice: 0,
+        soldQty,
+        unitPrice,
+        expense,
+        partnerSharePercent: 0,
+        note,
+      });
+
+      // Reset fields
+      setSoldQty(0);
+      setExpense(0);
+      setNote("");
+      setDate(new Date().toISOString().slice(0, 10));
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 4000);
+    }
   };
 
   const handleEditSubmit = (id: string) => {
@@ -261,19 +295,15 @@ export default function MomoPartnership({
       setEditError("পরিমাণ অবশ্যই ০ বা ইতিবাচক হতে হবে!");
       return;
     }
-    if (editPaidQty > editReceivedQty) {
+    if (editReceivedQty > 0 && editPaidQty > editReceivedQty) {
       setEditError("পরিশোধকৃত পিস গ্রহনের পরিমাণের চেয়ে বেশি হতে পারে না!");
       return;
     }
-    if (editSoldQty > editReceivedQty) {
-      setEditError("বিক্রির পরিমাণ গ্রহনের পরিমাণের চেয়ে বেশি হতে পারে না!");
-      return;
-    }
-    if (editPurchasePrice <= 0) {
+    if (editReceivedQty > 0 && editPurchasePrice <= 0) {
       setEditError("কেনার দাম রেট ০ এর বেশি হতে হবে!");
       return;
     }
-    if (editUnitPrice <= 0) {
+    if (editSoldQty > 0 && editUnitPrice <= 0) {
       setEditError("বিক্রয় মূল্য অবশ্যই ০ এর চেয়ে বড় হতে হবে!");
       return;
     }
@@ -446,11 +476,43 @@ export default function MomoPartnership({
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
               <PlusCircle className="w-5 h-5 text-amber-500" />
-              <h3 className="font-bold text-slate-800 text-sm">নতুন মোমো ডেলিভারি ও বিল এন্ট্রি</h3>
+              <h3 className="font-bold text-slate-800 text-sm">নতুন মোমো তথ্য এন্ট্রি</h3>
             </div>
             <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-              <Keyboard className="w-3.5 h-3.5" /> কাস্টম কীবোর্ড রেডি
+              <Keyboard className="w-3.5 h-3.5" /> কীবোর্ড রেডি
             </span>
+          </div>
+
+          {/* Entry Tab Selector */}
+          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200/40 w-full">
+            <button
+              type="button"
+              onClick={() => {
+                setEntryTab("receive");
+                setErrorMsg("");
+              }}
+              className={`flex-1 py-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer text-center ${
+                entryTab === "receive"
+                  ? "bg-amber-500 text-white shadow-xs"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              মোমো গ্রহণ (Receive)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEntryTab("sell");
+                setErrorMsg("");
+              }}
+              className={`flex-1 py-2 text-[11px] font-bold rounded-lg transition-all cursor-pointer text-center ${
+                entryTab === "sell"
+                  ? "bg-amber-500 text-white shadow-xs"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              মোমো বিক্রয় (Sales)
+            </button>
           </div>
 
           {errorMsg && (
@@ -462,13 +524,13 @@ export default function MomoPartnership({
           {success && (
             <div className="p-3 bg-emerald-50 border border-emerald-100 text-emerald-700 text-xs rounded-xl font-semibold flex items-center gap-1.5">
               <Check className="w-4 h-4 text-emerald-600" />
-              <span>মোমো স্টক ও বিল হিসাবটি সফলভাবে সংরক্ষণ করা হয়েছে!</span>
+              <span>সফলভাবে সংরক্ষণ করা হয়েছে!</span>
             </div>
           )}
 
           {/* Date Picker */}
           <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-slate-500 block">ডেলিভারির তারিখ *</label>
+            <label className="text-[11px] font-bold text-slate-500 block">এন্ট্রির তারিখ *</label>
             <div className="relative">
               <Calendar className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
               <input
@@ -481,32 +543,79 @@ export default function MomoPartnership({
             </div>
           </div>
 
-          {/* Received and Paid Quantities */}
-          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/50 space-y-3">
-            <h4 className="text-[11px] font-bold text-slate-700 border-b border-slate-200/60 pb-1.5 flex items-center gap-1">
-              <Layers className="w-3.5 h-3.5 text-amber-500" /> মোমো ডেলিভারি ও বিল ট্র্যাকিং
-            </h4>
+          {entryTab === "receive" ? (
+            /* Received and Paid Quantities */
+            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/50 space-y-3">
+              <h4 className="text-[11px] font-bold text-slate-700 border-b border-slate-200/60 pb-1.5 flex items-center gap-1">
+                <Layers className="w-3.5 h-3.5 text-amber-500" /> মোমো ডেলিভারি ও বিল ট্র্যাকিং
+              </h4>
 
-            <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 block">কত পিস কিনলাম *</label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={receivedQty || ""}
+                      onChange={(e) => {
+                        const val = Math.max(0, parseInt(e.target.value, 10) || 0);
+                        setReceivedQty(val);
+                      }}
+                      className="w-full flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-extrabold focus:outline-none focus:border-blue-500 transition-all text-slate-800"
+                      placeholder="যেমন: ৫০"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => triggerKeypad("receivedQty", "কত পিস কিনলাম (Received Pcs)", receivedQty)}
+                      className="p-2 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-xl border border-amber-200 cursor-pointer text-xs"
+                      title="কাস্টম টাচ কীবোর্ড দিয়ে ইনপুট"
+                    >
+                      <Keyboard className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 block">কত পিস বিল দিলাম *</label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={paidQty || ""}
+                      onChange={(e) => setPaidQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                      className="w-full flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-extrabold focus:outline-none focus:border-blue-500 transition-all text-slate-800"
+                      placeholder="যেমন: ২০"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => triggerKeypad("paidQty", "কত পিস বিল দিলাম (Paid Pcs)", paidQty)}
+                      className="p-2 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-xl border border-amber-200 cursor-pointer text-xs"
+                      title="কাস্টম টাচ কীবোর্ড দিয়ে ইনপুট"
+                    >
+                      <Keyboard className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-500 block">কত পিস কিনলাম *</label>
+                <label className="text-[10px] font-bold text-slate-500 block">মোমো প্রতি পিস কেনা দাম (৳ রেট) *</label>
                 <div className="flex gap-1.5">
                   <input
                     type="number"
-                    min="0"
+                    min="0.1"
+                    step="0.1"
                     required
-                    value={receivedQty || ""}
-                    onChange={(e) => {
-                      const val = Math.max(0, parseInt(e.target.value, 10) || 0);
-                      setReceivedQty(val);
-                      if (soldQty === 0) setSoldQty(val);
-                    }}
+                    value={purchasePrice || ""}
+                    onChange={(e) => setPurchasePrice(Math.max(0, parseFloat(e.target.value) || 0))}
                     className="w-full flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-extrabold focus:outline-none focus:border-blue-500 transition-all text-slate-800"
-                    placeholder="যেমন: ৫০"
+                    placeholder="যেমন: ৮"
                   />
                   <button
                     type="button"
-                    onClick={() => triggerKeypad("receivedQty", "কত পিস কিনলাম (Received Pcs)", receivedQty)}
+                    onClick={() => triggerKeypad("purchasePrice", "কেনা দাম রেট (Purchase Price)", purchasePrice, true)}
                     className="p-2 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-xl border border-amber-200 cursor-pointer text-xs"
                     title="কাস্টম টাচ কীবোর্ড দিয়ে ইনপুট"
                   >
@@ -514,160 +623,126 @@ export default function MomoPartnership({
                   </button>
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-500 block">কত পিস বিল দিলাম *</label>
-                <div className="flex gap-1.5">
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={paidQty || ""}
-                    onChange={(e) => setPaidQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                    className="w-full flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-extrabold focus:outline-none focus:border-blue-500 transition-all text-slate-800"
-                    placeholder="যেমন: ২০"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => triggerKeypad("paidQty", "কত পিস বিল দিলাম (Paid Pcs)", paidQty)}
-                    className="p-2 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-xl border border-amber-200 cursor-pointer text-xs"
-                    title="কাস্টম টাচ কীবোর্ড দিয়ে ইনপুট"
-                  >
-                    <Keyboard className="w-4 h-4" />
-                  </button>
+
+              {/* Calculations display */}
+              {(receivedQty > 0 || paidQty > 0) && (
+                <div className="bg-white p-2.5 rounded-lg border border-slate-200/60 text-[10px] font-semibold text-slate-600 space-y-1">
+                  <div className="flex justify-between">
+                    <span>মোট বিলের টাকা:</span>
+                    <span className="font-bold text-slate-800">{receivedQty} পিস × ৳{purchasePrice} = {formatCurrency(autoCalculatedValue.bill)}</span>
+                  </div>
+                  <div className="flex justify-between text-teal-600">
+                    <span>বিলের পরিশোধিত টাকা:</span>
+                    <span className="font-bold">{paidQty} পিস × ৳{purchasePrice} = {formatCurrency(autoCalculatedValue.paid)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-slate-100 pt-1 text-rose-600 font-bold">
+                    <span>বকেয়া বিলের বাকি:</span>
+                    <span>{autoCalculatedValue.duePcs} পিস মোমো ({formatCurrency(autoCalculatedValue.dueAmt)})</span>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
+          ) : (
+            /* Sales Tracking */
+            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/50 space-y-3">
+              <h4 className="text-[11px] font-bold text-slate-700 border-b border-slate-200/60 pb-1.5 flex items-center gap-1">
+                <ShoppingBag className="w-3.5 h-3.5 text-amber-500" /> মোমো বিক্রয় ও স্টক ট্র্যাকার
+              </h4>
 
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-500 block">মোমো প্রতি পিস কেনা দাম (৳ রেট) *</label>
-              <div className="flex gap-1.5">
-                <input
-                  type="number"
-                  min="0.1"
-                  step="0.1"
-                  required
-                  value={purchasePrice || ""}
-                  onChange={(e) => setPurchasePrice(Math.max(0, parseFloat(e.target.value) || 0))}
-                  className="w-full flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-extrabold focus:outline-none focus:border-blue-500 transition-all text-slate-800"
-                  placeholder="যেমন: ৮"
-                />
-                <button
-                  type="button"
-                  onClick={() => triggerKeypad("purchasePrice", "কেনা দাম রেট (Purchase Price)", purchasePrice, true)}
-                  className="p-2 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-xl border border-amber-200 cursor-pointer text-xs"
-                  title="কাস্টম টাচ কীবোর্ড দিয়ে ইনপুট"
-                >
-                  <Keyboard className="w-4 h-4" />
-                </button>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 block">কত পিস বিক্রি করলাম *</label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={soldQty || ""}
+                      onChange={(e) => setSoldQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                      className="w-full flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-blue-500 transition-all text-slate-800"
+                      placeholder="যেমন: ৪৫"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => triggerKeypad("soldQty", "কত পিস বিক্রি করলাম (Sold Pcs)", soldQty)}
+                      className="p-2 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-xl border border-amber-200 cursor-pointer text-xs"
+                      title="কাস্টম কীবোর্ড দিয়ে ইনপুট"
+                    >
+                      <Keyboard className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 block">বিক্রয় মূল্য (৳ প্রতি পিস) *</label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={unitPrice || ""}
+                      onChange={(e) => setUnitPrice(Math.max(0, parseFloat(e.target.value) || 0))}
+                      className="w-full flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-blue-500 transition-all text-slate-800"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => triggerKeypad("unitPrice", "বিক্রয় মূল্য প্রতি পিস (Selling Price)", unitPrice, true)}
+                      className="p-2 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-xl border border-amber-200 cursor-pointer text-xs"
+                      title="কাস্টম কীবোর্ড দিয়ে ইনপুট"
+                    >
+                      <Keyboard className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
               </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5 col-span-2">
+                  <label className="text-[10px] font-bold text-slate-500 block">আনুষঙ্গিক খরচ (৳) *</label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={expense || ""}
+                      onChange={(e) => setExpense(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                      className="w-full flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-blue-500 transition-all text-slate-800"
+                      placeholder="মশলা, গ্যাস ইত্যাদি..."
+                    />
+                    <button
+                      type="button"
+                      onClick={() => triggerKeypad("expense", "আনুষঙ্গিক খরচ (Expense Amt)", expense)}
+                      className="p-2 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-xl border border-amber-200 cursor-pointer text-xs"
+                      title="কাস্টম কীবোর্ড দিয়ে ইনপুট"
+                    >
+                      <Keyboard className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sales calculation display */}
+              {soldQty > 0 && (
+                <div className="bg-white p-2.5 rounded-lg border border-slate-200/60 text-[10px] font-semibold text-slate-600 space-y-1">
+                  <div className="flex justify-between">
+                    <span>মোট বিক্রয়:</span>
+                    <span className="font-bold text-slate-800">{soldQty} পিস × ৳{unitPrice} = {formatCurrency(soldQty * unitPrice)}</span>
+                  </div>
+                  <div className="flex justify-between text-rose-600">
+                    <span>আনুষঙ্গিক খরচ:</span>
+                    <span className="font-bold">{formatCurrency(expense)}</span>
+                  </div>
+                  <div className="flex justify-between text-amber-700">
+                    <span>আনুমানিক মোমো খরচ (৳৮ হিসেবে):</span>
+                    <span className="font-bold">{soldQty} পিস × ৳৮ = {formatCurrency(soldQty * 8)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-slate-100 pt-1 text-emerald-600 font-bold">
+                    <span>নিট লাভ:</span>
+                    <span>{formatCurrency((soldQty * unitPrice) - expense - (soldQty * 8))}</span>
+                  </div>
+                </div>
+              )}
             </div>
-
-            {/* Calculations display */}
-            {(receivedQty > 0 || paidQty > 0) && (
-              <div className="bg-white p-2.5 rounded-lg border border-slate-200/60 text-[10px] font-semibold text-slate-600 space-y-1">
-                <div className="flex justify-between">
-                  <span>মোট বিলের টাকা:</span>
-                  <span className="font-bold text-slate-800">{receivedQty} পিস × ৳{purchasePrice} = {formatCurrency(autoCalculatedValue.bill)}</span>
-                </div>
-                <div className="flex justify-between text-teal-600">
-                  <span>বিলের পরিশোধিত টাকা:</span>
-                  <span className="font-bold">{paidQty} পিস × ৳{purchasePrice} = {formatCurrency(autoCalculatedValue.paid)}</span>
-                </div>
-                <div className="flex justify-between border-t border-slate-100 pt-1 text-rose-600 font-bold">
-                  <span>বকেয়া বিলের বাকি:</span>
-                  <span>{autoCalculatedValue.duePcs} পিস মোমো ({formatCurrency(autoCalculatedValue.dueAmt)})</span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Sales Tracking */}
-          <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/50 space-y-3">
-            <h4 className="text-[11px] font-bold text-slate-700 border-b border-slate-200/60 pb-1.5 flex items-center gap-1">
-              <ShoppingBag className="w-3.5 h-3.5 text-amber-500" /> মোমো বিক্রয় ও স্টক ট্র্যাকার
-            </h4>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-500 block">কত পিস বিক্রি করলাম *</label>
-                <div className="flex gap-1.5">
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={soldQty || ""}
-                    onChange={(e) => setSoldQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                    className="w-full flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-blue-500 transition-all text-slate-800"
-                    placeholder="যেমন: ৪৫"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => triggerKeypad("soldQty", "কত পিস বিক্রি করলাম (Sold Pcs)", soldQty)}
-                    className="p-2 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-xl border border-amber-200 cursor-pointer text-xs"
-                    title="কাস্টম কীবোর্ড দিয়ে ইনপুট"
-                  >
-                    <Keyboard className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-500 block">বিক্রয় মূল্য (৳ প্রতি পিস) *</label>
-                <div className="flex gap-1.5">
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={unitPrice || ""}
-                    onChange={(e) => setUnitPrice(Math.max(0, parseFloat(e.target.value) || 0))}
-                    className="w-full flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-blue-500 transition-all text-slate-800"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => triggerKeypad("unitPrice", "বিক্রয় মূল্য প্রতি পিস (Selling Price)", unitPrice, true)}
-                    className="p-2 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-xl border border-amber-200 cursor-pointer text-xs"
-                    title="কাস্টম কীবোর্ড দিয়ে ইনপুট"
-                  >
-                    <Keyboard className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-500 block">আনুষঙ্গিক খরচ (৳) *</label>
-                <div className="flex gap-1.5">
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={expense || ""}
-                    onChange={(e) => setExpense(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                    className="w-full flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-blue-500 transition-all text-slate-800"
-                    placeholder="মশলা, গ্যাস ইত্যাদি..."
-                  />
-                  <button
-                    type="button"
-                    onClick={() => triggerKeypad("expense", "আনুষঙ্গিক খরচ (Expense Amt)", expense)}
-                    className="p-2 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-xl border border-amber-200 cursor-pointer text-xs"
-                    title="কাস্টম কীবোর্ড দিয়ে ইনপুট"
-                  >
-                    <Keyboard className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Display Stock remaining for this entry */}
-              <div className="space-y-1.5 flex flex-col justify-end">
-                <div className="bg-white p-2 border border-slate-200 rounded-xl text-center">
-                  <span className="text-[9px] text-slate-400 font-bold block uppercase">চলতি স্টক বাকি</span>
-                  <span className={`text-sm font-black block mt-0.5 ${autoCalculatedValue.stockPcs < 0 ? "text-rose-600" : "text-blue-600"}`}>
-                    {autoCalculatedValue.stockPcs} পিস
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
+          )}
 
           {/* Comments with Bengali Voice dictation button */}
           <div className="space-y-1.5">
@@ -693,7 +768,11 @@ export default function MomoPartnership({
             className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-xs shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-[0.98]"
           >
             <PlusCircle className="w-4.5 h-4.5" />
-            <span>মোমো স্টক ও বিল এন্ট্রি সংরক্ষণ করুন</span>
+            <span>
+              {entryTab === "receive" 
+                ? "মোমো গ্রহণ এন্ট্রি সংরক্ষণ করুন" 
+                : "মোমো বিক্রয় এন্ট্রি সংরক্ষণ করুন"}
+            </span>
           </button>
         </form>
 
@@ -721,7 +800,7 @@ export default function MomoPartnership({
                   <thead>
                     <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase bg-slate-50/50">
                       <th className="py-3 px-2">তারিখ</th>
-                      <th className="py-3 px-2">ডেলিভারি ও স্টক বাকি</th>
+                      <th className="py-3 px-2">টাইপ ও পরিমাণ</th>
                       <th className="py-3 px-2">ক্রয় রেট ও বিল বকেয়া</th>
                       <th className="py-3 px-2">বিক্রয় ও লাভ (Profit)</th>
                       <th className="py-3 px-2 text-right">অ্যাকশন</th>
@@ -730,12 +809,11 @@ export default function MomoPartnership({
                   <tbody className="divide-y divide-slate-100 text-xs">
                     {momoLogs.slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((log) => {
                       const pq = log.paidQty !== undefined ? log.paidQty : log.receivedQty;
-                      const pp = log.purchasePrice !== undefined ? log.purchasePrice : 8;
+                      const pp = log.purchasePrice !== undefined && log.purchasePrice > 0 ? log.purchasePrice : 8;
                       const duePcs = log.receivedQty - pq;
                       const billVal = log.receivedQty * pp;
                       const paidVal = pq * pp;
                       const dueVal = billVal - paidVal;
-                      const remainingStock = log.receivedQty - (log.soldQty || 0);
                       const salesVal = log.soldQty * log.unitPrice;
                       const netProfit = salesVal - log.expense - (log.soldQty * pp);
 
@@ -825,27 +903,57 @@ export default function MomoPartnership({
                             {formatDateBengali(log.date)}
                           </td>
                           <td className="py-3 px-2 text-slate-700 font-medium">
-                            <div>গ্রহন: <span className="font-bold text-slate-800">{log.receivedQty}</span> পিস</div>
-                            <div className="text-[11px] text-blue-600 font-bold">
-                              স্টক আছে: {remainingStock} পিস
-                            </div>
-                            <div className="text-[11px] text-rose-600 font-bold flex items-center gap-1">
-                              <span>বকেয়া: {duePcs} পিস</span>
-                              {duePcs > 0 && <span className="w-1.5 h-1.5 bg-rose-500 rounded-full inline-block animate-pulse"></span>}
-                            </div>
+                            {log.receivedQty > 0 ? (
+                              <div className="space-y-0.5">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 mb-1">
+                                  মোমো গ্রহণ
+                                </span>
+                                <div>গ্রহণ: <span className="font-extrabold text-slate-800">{log.receivedQty}</span> পিস</div>
+                                <div className="text-[11px] text-rose-600 font-bold flex items-center gap-1">
+                                  <span>বকেয়া: {duePcs} পিস</span>
+                                  {duePcs > 0 && <span className="w-1.5 h-1.5 bg-rose-500 rounded-full inline-block animate-pulse"></span>}
+                                </div>
+                              </div>
+                            ) : log.paidQty && log.paidQty > 0 ? (
+                              <div className="space-y-0.5">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-teal-100 text-teal-800 mb-1">
+                                  বকেয়া পরিশোধ
+                                </span>
+                                <div>পরিশোধ: <span className="font-extrabold text-slate-800">{log.paidQty}</span> পিস বিল</div>
+                              </div>
+                            ) : (
+                              <div className="space-y-0.5">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-800 mb-1">
+                                  মোমো বিক্রয়
+                                </span>
+                                <div>বিক্রিত: <span className="font-extrabold text-slate-800">{log.soldQty}</span> পিস</div>
+                              </div>
+                            )}
                           </td>
                           <td className="py-3 px-2 font-semibold text-slate-600">
-                            <div>মোট বিল: <span className="font-bold text-slate-800">{formatCurrency(billVal)}</span></div>
-                            <div className="text-[11px] text-teal-600 font-bold">পরিশোধ: {formatCurrency(paidVal)}</div>
-                            {dueVal > 0 && <div className="text-[10px] text-rose-600 font-bold">বকেয়া বিল: {formatCurrency(dueVal)}</div>}
-                            <div className="text-[10px] text-slate-400 font-medium">রেট: ৳{pp}/পিস</div>
+                            {log.receivedQty > 0 || (log.paidQty && log.paidQty > 0) ? (
+                              <div className="space-y-0.5">
+                                {log.receivedQty > 0 && <div>মোট বিল: <span className="font-bold text-slate-800">{formatCurrency(billVal)}</span></div>}
+                                <div className="text-[11px] text-teal-600 font-bold">পরিশোধ: {formatCurrency(paidVal)}</div>
+                                {dueVal > 0 && <div className="text-[10px] text-rose-600 font-bold">বকেয়া বিল: {formatCurrency(dueVal)}</div>}
+                                <div className="text-[10px] text-slate-400 font-medium">রেট: ৳{pp}/পিস</div>
+                              </div>
+                            ) : (
+                              <span className="text-slate-300">—</span>
+                            )}
                           </td>
                           <td className="py-3 px-2 text-slate-700">
-                            <div className="font-extrabold text-blue-600">মোট বিক্রয়: {formatCurrency(salesVal)}</div>
-                            <div className="font-extrabold text-emerald-600 text-[11px]">নিট লাভ: {formatCurrency(netProfit)}</div>
-                            <div className="text-[9px] text-slate-400 font-medium mt-0.5 leading-none">
-                              বিক্রিত: {log.soldQty} পিস | খরচ: {formatCurrency(log.expense)}
-                            </div>
+                            {log.soldQty > 0 ? (
+                              <div className="space-y-0.5">
+                                <div className="font-extrabold text-blue-600">মোট বিক্রয়: {formatCurrency(salesVal)}</div>
+                                <div className="font-extrabold text-emerald-600 text-[11px]">নিট লাভ: {formatCurrency(netProfit)}</div>
+                                <div className="text-[9px] text-slate-400 font-medium mt-0.5 leading-none">
+                                  দর: ৳{log.unitPrice}/পিস | খরচ: {formatCurrency(log.expense)}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-slate-300">—</span>
+                            )}
                             {log.note && (
                               <div className="text-[9px] text-slate-400 font-medium mt-1 italic max-w-[150px] truncate" title={log.note}>
                                 {log.note}
@@ -892,12 +1000,11 @@ export default function MomoPartnership({
               <div className="block sm:hidden space-y-3">
                 {momoLogs.slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((log) => {
                   const pq = log.paidQty !== undefined ? log.paidQty : log.receivedQty;
-                  const pp = log.purchasePrice !== undefined ? log.purchasePrice : 8;
+                  const pp = log.purchasePrice !== undefined && log.purchasePrice > 0 ? log.purchasePrice : 8;
                   const duePcs = log.receivedQty - pq;
                   const billVal = log.receivedQty * pp;
                   const paidVal = pq * pp;
                   const dueVal = billVal - paidVal;
-                  const remainingStock = log.receivedQty - (log.soldQty || 0);
                   const salesVal = log.soldQty * log.unitPrice;
                   const netProfit = salesVal - log.expense - (log.soldQty * pp);
 
@@ -993,7 +1100,22 @@ export default function MomoPartnership({
                   ) : (
                     <div key={log.id} className="bg-slate-50 p-4 rounded-xl border border-slate-200/60 space-y-3">
                       <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-                        <span className="text-xs font-extrabold text-slate-700">{formatDateBengali(log.date)}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-extrabold text-slate-700">{formatDateBengali(log.date)}</span>
+                          {log.receivedQty > 0 ? (
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-amber-100 text-amber-800">
+                              মোমো গ্রহণ
+                            </span>
+                          ) : log.paidQty && log.paidQty > 0 ? (
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-teal-100 text-teal-800">
+                              বকেয়া পরিশোধ
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-100 text-blue-800">
+                              মোমো বিক্রয়
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1">
                           <button
                             type="button"
@@ -1009,14 +1131,14 @@ export default function MomoPartnership({
                               setEditNote(log.note);
                               setEditError("");
                             }}
-                            className="p-1 text-slate-400 hover:text-blue-600 transition-colors"
+                            className="p-1 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button
                             type="button"
                             onClick={() => onDeleteMomoLog(log.id)}
-                            className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
+                            className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -1024,32 +1146,47 @@ export default function MomoPartnership({
                       </div>
 
                       <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="space-y-0.5">
-                          <span className="text-[10px] text-slate-400 block font-bold uppercase">ডেলিভারি ও স্টক</span>
-                          <p className="font-semibold text-slate-700">গ্রহন: <b className="text-slate-800">{log.receivedQty} পিস</b></p>
-                          <p className="font-semibold text-blue-600">স্টক আছে: <b>{remainingStock} পিস</b></p>
-                          <p className="font-semibold text-rose-600">বকেয়া বিল পিস: <b>{duePcs} পিস</b></p>
-                        </div>
+                        {log.receivedQty > 0 || (log.paidQty && log.paidQty > 0) ? (
+                          <>
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] text-slate-400 block font-bold uppercase">ডেলিভারি পরিমাণ</span>
+                              {log.receivedQty > 0 && <p className="font-semibold text-slate-700">গ্রহণ: <b className="text-slate-800">{log.receivedQty} পিস</b></p>}
+                              <p className="font-semibold text-rose-600">বকেয়া বিল পিস: <b>{duePcs} পিস</b></p>
+                            </div>
 
-                        <div className="space-y-0.5">
-                          <span className="text-[10px] text-slate-400 block font-bold uppercase">বিলের হিসাব (৳)</span>
-                          <p className="font-semibold text-slate-700">মোট বিল: <b>{formatCurrency(billVal)}</b></p>
-                          <p className="font-semibold text-teal-600">পরিশোধ: <b>{formatCurrency(paidVal)}</b></p>
-                          {dueVal > 0 && <p className="font-semibold text-rose-600">বকেয়া বাকি: <b>{formatCurrency(dueVal)}</b></p>}
-                        </div>
+                            <div className="space-y-0.5">
+                              <span className="text-[10px] text-slate-400 block font-bold uppercase">বিলের হিসাব (৳)</span>
+                              {log.receivedQty > 0 && <p className="font-semibold text-slate-700">মোট বিল: <b>{formatCurrency(billVal)}</b></p>}
+                              <p className="font-semibold text-teal-600">পরিশোধ: <b>{formatCurrency(paidVal)}</b></p>
+                              {dueVal > 0 && <p className="font-semibold text-rose-600">বকেয়া বাকি: <b>{formatCurrency(dueVal)}</b></p>}
+                              <p className="text-[10px] text-slate-400 font-medium">রেট: ৳{pp}/পিস</p>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="col-span-2 text-slate-400 text-[11px] font-medium py-1">
+                            এই এন্ট্রিতে কোনো নতুন মোমো ডেলিভারি নেই।
+                          </div>
+                        )}
                       </div>
 
-                      <div className="border-t border-slate-100 pt-2 flex justify-between items-center bg-white/40 -mx-4 -mb-4 p-4 rounded-b-xl">
-                        <div>
-                          <span className="text-[9px] text-slate-400 block font-bold uppercase">বিক্রয় ও নিট লাভ</span>
-                          <span className="text-blue-600 font-extrabold text-xs block">বিক্রয়: {formatCurrency(salesVal)}</span>
-                          <span className="text-emerald-600 font-black text-xs block">লাভ: {formatCurrency(netProfit)}</span>
+                      {log.soldQty > 0 && (
+                        <div className="border-t border-slate-100 pt-2 flex justify-between items-center bg-white/40 -mx-4 -mb-4 p-4 rounded-b-xl">
+                          <div>
+                            <span className="text-[9px] text-slate-400 block font-bold uppercase">বিক্রয় ও নিট লাভ</span>
+                            <span className="text-blue-600 font-extrabold text-xs block">বিক্রয়: {formatCurrency(salesVal)}</span>
+                            <span className="text-emerald-600 font-black text-xs block">লাভ: {formatCurrency(netProfit)}</span>
+                          </div>
+                          <div className="text-right text-[10px] text-slate-400">
+                            <span>বিক্রিত: {log.soldQty} পিস</span>
+                            {log.note && <span className="block italic truncate max-w-[120px]">{log.note}</span>}
+                          </div>
                         </div>
-                        <div className="text-right text-[10px] text-slate-400">
-                          <span>বিক্রিত: {log.soldQty} পিস</span>
-                          {log.note && <span className="block italic truncate max-w-[120px]">{log.note}</span>}
+                      )}
+                      {log.soldQty === 0 && log.note && (
+                        <div className="border-t border-slate-100 pt-2 text-[10px] text-slate-400 italic bg-white/40 -mx-4 -mb-4 p-3 rounded-b-xl">
+                          মন্তব্য: {log.note}
                         </div>
-                      </div>
+                      )}
                     </div>
                   );
                 })}

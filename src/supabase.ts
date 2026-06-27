@@ -79,6 +79,8 @@ CREATE TABLE IF NOT EXISTS momo_logs (
   id TEXT PRIMARY KEY,
   date TEXT NOT NULL,
   received_qty INTEGER NOT NULL,
+  paid_qty INTEGER DEFAULT 0,
+  purchase_price NUMERIC DEFAULT 8,
   sold_qty INTEGER NOT NULL,
   unit_price NUMERIC NOT NULL,
   total_sales NUMERIC NOT NULL,
@@ -86,6 +88,10 @@ CREATE TABLE IF NOT EXISTS momo_logs (
   partner_share_percent NUMERIC NOT NULL,
   note TEXT
 );
+
+-- পূর্বের ডাটাবেজ আপডেট করার জন্য নিচের কুয়েরিগুলো রান করুন (যদি অলরেডি টেবিল তৈরি থাকে):
+ALTER TABLE momo_logs ADD COLUMN IF NOT EXISTS paid_qty INTEGER DEFAULT 0;
+ALTER TABLE momo_logs ADD COLUMN IF NOT EXISTS purchase_price NUMERIC DEFAULT 8;
 
 -- ৯. সব টেবিলের RLS নিষ্ক্রিয় অথবা পাবলিক এক্সেস পলিসি তৈরি করুন
 ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
@@ -97,13 +103,22 @@ ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE staff_advances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE momo_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow public read-write for settings" ON settings;
 CREATE POLICY "Allow public read-write for settings" ON settings FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow public read-write for products" ON products;
 CREATE POLICY "Allow public read-write for products" ON products FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow public read-write for staff_codes" ON staff_codes;
 CREATE POLICY "Allow public read-write for staff_codes" ON staff_codes FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow public read-write for expense_categories" ON expense_categories;
 CREATE POLICY "Allow public read-write for expense_categories" ON expense_categories FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow public read-write for sales" ON sales;
 CREATE POLICY "Allow public read-write for sales" ON sales FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow public read-write for expenses" ON expenses;
 CREATE POLICY "Allow public read-write for expenses" ON expenses FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow public read-write for staff_advances" ON staff_advances;
 CREATE POLICY "Allow public read-write for staff_advances" ON staff_advances FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public read-write for momo_logs" ON momo_logs;
 CREATE POLICY "Allow public read-write for momo_logs" ON momo_logs FOR ALL USING (true) WITH CHECK (true);`;
 
 // GRACEFUL SYNC HELPERS
@@ -521,20 +536,18 @@ export async function uploadMomoLogs(logs: MomoLog[]) {
   if (logs.length === 0) return;
 
   const formatted = logs.map(l => {
-    const meta = { pq: l.paidQty || 0, pp: l.purchasePrice || 0 };
-    const cleanNote = (l.note || "").replace(/\s*\[META:\{.*?\}\]\s*$/, "");
-    const noteWithMeta = `${cleanNote} [META:${JSON.stringify(meta)}]`.trim();
-
     return {
       id: l.id,
       date: l.date,
       received_qty: l.receivedQty,
+      paid_qty: l.paidQty !== undefined ? l.paidQty : 0,
+      purchase_price: l.purchasePrice !== undefined ? l.purchasePrice : 8,
       sold_qty: l.soldQty,
       unit_price: l.unitPrice,
       total_sales: l.totalSales,
       expense: l.expense,
       partner_share_percent: l.partnerSharePercent,
-      note: noteWithMeta
+      note: l.note || ""
     };
   });
   const { error } = await supabase.from("momo_logs").upsert(formatted);
@@ -548,15 +561,23 @@ export async function downloadMomoLogs(): Promise<MomoLog[] | null> {
   return (data || []).map(row => {
     const fullNote = row.note || "";
     const match = fullNote.match(/\[META:(\{.*?\})\]/);
-    let paidQty = 0;
-    let purchasePrice = 0;
+    
+    // Default values from native columns if present, otherwise default to 0 and 8
+    let paidQty = row.paid_qty !== undefined && row.paid_qty !== null ? Number(row.paid_qty) : 0;
+    let purchasePrice = row.purchase_price !== undefined && row.purchase_price !== null ? Number(row.purchase_price) : 8;
     let note = fullNote;
+
     if (match) {
       try {
         const meta = JSON.parse(match[1]);
         note = fullNote.replace(/\s*\[META:\{.*?\}\]\s*$/, "").trim();
-        paidQty = Number(meta.pq) || 0;
-        purchasePrice = Number(meta.pp) || 0;
+        // If native columns were default or null, fallback to metadata parsing for backward compatibility
+        if (paidQty === 0 && meta.pq !== undefined) {
+          paidQty = Number(meta.pq) || 0;
+        }
+        if ((purchasePrice === 8 || purchasePrice === 0) && meta.pp !== undefined) {
+          purchasePrice = Number(meta.pp) || 8;
+        }
       } catch (e) {}
     }
 
@@ -579,20 +600,18 @@ export async function downloadMomoLogs(): Promise<MomoLog[] | null> {
 export async function saveMomoLog(log: MomoLog): Promise<void> {
   if (!supabase) return;
   try {
-    const meta = { pq: log.paidQty || 0, pp: log.purchasePrice || 0 };
-    const cleanNote = (log.note || "").replace(/\s*\[META:\{.*?\}\]\s*$/, "");
-    const noteWithMeta = `${cleanNote} [META:${JSON.stringify(meta)}]`.trim();
-
     const { error } = await supabase.from("momo_logs").upsert({
       id: log.id,
       date: log.date,
       received_qty: log.receivedQty,
+      paid_qty: log.paidQty !== undefined ? log.paidQty : 0,
+      purchase_price: log.purchasePrice !== undefined ? log.purchasePrice : 8,
       sold_qty: log.soldQty,
       unit_price: log.unitPrice,
       total_sales: log.totalSales,
       expense: log.expense,
       partner_share_percent: log.partnerSharePercent,
-      note: noteWithMeta
+      note: log.note || ""
     });
     if (error) throw error;
   } catch (err) {

@@ -1,6 +1,6 @@
 {
   "name": "Badsha Bhai Tally Khata",
   "description": "বাদশা ভাইয়ের ব্যবসা পরিচালনা, আয়-ব্যয় হিসাব ও পিওএস বিলিং এ্যাপ",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
