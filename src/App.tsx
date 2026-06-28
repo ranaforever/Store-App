@@ -109,6 +109,22 @@ export default function App() {
     return stored !== "false";
   });
 
+  // Global Toast Notifications
+  const [toast, setToast] = React.useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
+
+  const showToast = React.useCallback((text: string, type: "success" | "error" | "info" = "success") => {
+    setToast({ text, type });
+  }, []);
+
+  React.useEffect(() => {
+    if (!toast) return;
+    const delay = toast.type === "error" ? 12000 : 4000;
+    const timer = setTimeout(() => {
+      setToast(null);
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
   const handleToggleSupabaseAutoSync = () => {
     setSupabaseAutoSync(prev => {
       const next = !prev;
@@ -538,7 +554,10 @@ export default function App() {
     setProducts(updated);
     updateLocalStorage("tally_products", updated);
     if (supabaseStatus === "connected" && supabaseAutoSync) {
-      await saveProduct(newProduct);
+      const res = await saveProduct(newProduct);
+      if (res && !res.success) {
+        showToast(`ক্লাউডে প্রোডাক্ট সেভ করা যায়নি: ${res.error}`, "error");
+      }
     }
   };
 
@@ -547,7 +566,10 @@ export default function App() {
     setProducts(updated);
     updateLocalStorage("tally_products", updated);
     if (supabaseStatus === "connected" && supabaseAutoSync) {
-      await deleteProductFromDb(id);
+      const res = await deleteProductFromDb(id);
+      if (res && !res.success) {
+        showToast(`ক্লাউড থেকে প্রোডাক্ট ডিলিট করা যায়নি: ${res.error}`, "error");
+      }
     }
   };
 
@@ -560,7 +582,10 @@ export default function App() {
     setStaffCodes(updated);
     updateLocalStorage("tally_staff", updated);
     if (supabaseStatus === "connected" && supabaseAutoSync) {
-      await saveStaffCode(newStaff);
+      const res = await saveStaffCode(newStaff);
+      if (res && !res.success) {
+        showToast(`ক্লাউডে স্টাফ কোড সেভ করা যায়নি: ${res.error}`, "error");
+      }
     }
   };
 
@@ -569,7 +594,10 @@ export default function App() {
     setStaffCodes(updated);
     updateLocalStorage("tally_staff", updated);
     if (supabaseStatus === "connected" && supabaseAutoSync) {
-      await deleteStaffCodeFromDb(code);
+      const res = await deleteStaffCodeFromDb(code);
+      if (res && !res.success) {
+        showToast(`ক্লাউড থেকে স্টাফ কোড ডিলিট করা যায়নি: ${res.error}`, "error");
+      }
     }
   };
 
@@ -582,7 +610,10 @@ export default function App() {
     setCategories(updated);
     updateLocalStorage("tally_categories", updated);
     if (supabaseStatus === "connected" && supabaseAutoSync) {
-      await saveExpenseCategory(newCat);
+      const res = await saveExpenseCategory(newCat);
+      if (res && !res.success) {
+        showToast(`ক্লাউডে ক্যাটাগরি সেভ করা যায়নি: ${res.error}`, "error");
+      }
     }
   };
 
@@ -591,7 +622,10 @@ export default function App() {
     setCategories(updated);
     updateLocalStorage("tally_categories", updated);
     if (supabaseStatus === "connected" && supabaseAutoSync) {
-      await deleteExpenseCategoryFromDb(id);
+      const res = await deleteExpenseCategoryFromDb(id);
+      if (res && !res.success) {
+        showToast(`ক্লাউড থেকে ক্যাটাগরি ডিলিট করা যায়নি: ${res.error}`, "error");
+      }
     }
   };
 
@@ -601,7 +635,10 @@ export default function App() {
     updateLocalStorage("tally_products", updated);
     const updatedProd = updated.find(p => p.id === id);
     if (updatedProd && supabaseStatus === "connected" && supabaseAutoSync) {
-      await saveProduct(updatedProd);
+      const res = await saveProduct(updatedProd);
+      if (res && !res.success) {
+        showToast(`ক্লাউডে প্রোডাক্ট আপডেট করা যায়নি: ${res.error}`, "error");
+      }
     }
   };
 
@@ -620,10 +657,16 @@ export default function App() {
     updateLocalStorage("tally_expenses", updatedExpenses);
 
     if (supabaseStatus === "connected" && supabaseAutoSync) {
-      await deleteStaffCodeFromDb(oldCode);
+      const resDel = await deleteStaffCodeFromDb(oldCode);
+      if (resDel && !resDel.success) {
+        showToast(`পুরাতন স্টাফ কোড ডিলিট করতে এরর: ${resDel.error}`, "error");
+      }
       const newStaffObj = updatedStaff.find(s => s.code === newCode);
       if (newStaffObj) {
-        await saveStaffCode(newStaffObj);
+        const resAdd = await saveStaffCode(newStaffObj);
+        if (resAdd && !resAdd.success) {
+          showToast(`নতুন স্টাফ কোড সেভ করতে এরর: ${resAdd.error}`, "error");
+        }
       }
       for (const s of updatedSales) {
         if (s.staffCode === newCode) {
@@ -651,7 +694,10 @@ export default function App() {
     if (supabaseStatus === "connected" && supabaseAutoSync) {
       const updatedCat = updatedCategories.find(c => c.id === id);
       if (updatedCat) {
-        await saveExpenseCategory(updatedCat);
+        const resCat = await saveExpenseCategory(updatedCat);
+        if (resCat && !resCat.success) {
+          showToast(`ক্যাটাগরি আপডেট করতে এরর: ${resCat.error}`, "error");
+        }
       }
       for (const e of updatedExpenses) {
         if (e.category === name) {
@@ -666,7 +712,10 @@ export default function App() {
     setExpenses(updated);
     updateLocalStorage("tally_expenses", updated);
     if (supabaseStatus === "connected" && supabaseAutoSync) {
-      await saveExpense(newExpense);
+      const res = await saveExpense(newExpense);
+      if (res && !res.success) {
+        showToast(`ক্লাউডে খরচ সেভ করা যায়নি: ${res.error}`, "error");
+      }
     }
   };
 
@@ -675,7 +724,10 @@ export default function App() {
     setExpenses(updated);
     updateLocalStorage("tally_expenses", updated);
     if (supabaseStatus === "connected" && supabaseAutoSync) {
-      await deleteExpenseFromDb(id);
+      const res = await deleteExpenseFromDb(id);
+      if (res && !res.success) {
+        showToast(`ক্লাউড থেকে খরচ ডিলিট করা যায়নি: ${res.error}`, "error");
+      }
     }
   };
 
@@ -684,7 +736,10 @@ export default function App() {
     setExpenses(updated);
     updateLocalStorage("tally_expenses", updated);
     if (supabaseStatus === "connected" && supabaseAutoSync) {
-      await saveExpense(updatedExpense);
+      const res = await saveExpense(updatedExpense);
+      if (res && !res.success) {
+        showToast(`ক্লাউডে খরচ আপডেট করা যায়নি: ${res.error}`, "error");
+      }
     }
   };
 
@@ -698,7 +753,12 @@ export default function App() {
     setIsReceiptOpen(true);
 
     if (supabaseStatus === "connected" && supabaseAutoSync) {
-      await saveSale(newSale);
+      const res = await saveSale(newSale);
+      if (res && !res.success) {
+        showToast(`ক্লাউডে বিক্রয় সেভ করা যায়নি: ${res.error}`, "error");
+      } else {
+        showToast(`বিক্রয় ক্লাউডে সেভ হয়েছে! (মেমো নং: ${newSale.invoiceNo})`, "success");
+      }
     }
   };
 
@@ -707,7 +767,12 @@ export default function App() {
     setSales(updated);
     updateLocalStorage("tally_sales", updated);
     if (supabaseStatus === "connected" && supabaseAutoSync) {
-      await deleteSaleFromDb(id);
+      const res = await deleteSaleFromDb(id);
+      if (res && !res.success) {
+        showToast(`ক্লাউড থেকে বিক্রয় ডিলিট করা যায়নি: ${res.error}`, "error");
+      } else {
+        showToast(`বিক্রয় ক্লাউড থেকে মুছে ফেলা হয়েছে!`, "success");
+      }
     }
   };
 
@@ -716,7 +781,12 @@ export default function App() {
     setSales(updated);
     updateLocalStorage("tally_sales", updated);
     if (supabaseStatus === "connected" && supabaseAutoSync) {
-      await saveSale(updatedSale);
+      const res = await saveSale(updatedSale);
+      if (res && !res.success) {
+        showToast(`ক্লাউডে বিক্রয় আপডেট করা যায়নি: ${res.error}`, "error");
+      } else {
+        showToast(`বিক্রয় তথ্য ক্লাউডে আপডেট হয়েছে!`, "success");
+      }
     }
   };
 
@@ -732,7 +802,10 @@ export default function App() {
     setStaffAdvances(updated);
     updateLocalStorage("tally_staff_advances", updated);
     if (supabaseStatus === "connected" && supabaseAutoSync) {
-      await saveStaffAdvance(newAdvance);
+      const res = await saveStaffAdvance(newAdvance);
+      if (res && !res.success) {
+        showToast(`ক্লাউডে অগ্রিম প্রদান সেভ করা যায়নি: ${res.error}`, "error");
+      }
     }
   };
 
@@ -741,7 +814,10 @@ export default function App() {
     setStaffAdvances(updated);
     updateLocalStorage("tally_staff_advances", updated);
     if (supabaseStatus === "connected" && supabaseAutoSync) {
-      await deleteStaffAdvanceFromDb(id);
+      const res = await deleteStaffAdvanceFromDb(id);
+      if (res && !res.success) {
+        showToast(`ক্লাউড থেকে অগ্রিম প্রদান ডিলিট করা যায়নি: ${res.error}`, "error");
+      }
     }
   };
 
@@ -750,7 +826,10 @@ export default function App() {
     setStaffAdvances(updated);
     updateLocalStorage("tally_staff_advances", updated);
     if (supabaseStatus === "connected" && supabaseAutoSync) {
-      await saveStaffAdvance(updatedAdvance);
+      const res = await saveStaffAdvance(updatedAdvance);
+      if (res && !res.success) {
+        showToast(`ক্লাউডে অগ্রিম তথ্য আপডেট করা যায়নি: ${res.error}`, "error");
+      }
     }
   };
 
@@ -764,7 +843,10 @@ export default function App() {
     setMomoLogs(updated);
     updateLocalStorage("tally_momo_logs", updated);
     if (supabaseStatus === "connected" && supabaseAutoSync) {
-      await saveMomoLog(newLog);
+      const res = await saveMomoLog(newLog);
+      if (res && !res.success) {
+        showToast(`ক্লাউডে মোমো লগ সেভ করা যায়নি: ${res.error}`, "error");
+      }
     }
   };
 
@@ -773,7 +855,10 @@ export default function App() {
     setMomoLogs(updated);
     updateLocalStorage("tally_momo_logs", updated);
     if (supabaseStatus === "connected" && supabaseAutoSync) {
-      await deleteMomoLogFromDb(id);
+      const res = await deleteMomoLogFromDb(id);
+      if (res && !res.success) {
+        showToast(`ক্লাউড থেকে মোমো লগ ডিলিট করা যায়নি: ${res.error}`, "error");
+      }
     }
   };
 
@@ -786,7 +871,10 @@ export default function App() {
     setMomoLogs(updated);
     updateLocalStorage("tally_momo_logs", updated);
     if (supabaseStatus === "connected" && supabaseAutoSync) {
-      await saveMomoLog(updatedObj);
+      const res = await saveMomoLog(updatedObj);
+      if (res && !res.success) {
+        showToast(`ক্লাউডে মোমো লগ আপডেট করা যায়নি: ${res.error}`, "error");
+      }
     }
   };
 
@@ -1274,6 +1362,33 @@ export default function App() {
         storeName={storeName} 
         staffCodes={staffCodes}
       />
+
+      {/* Floating Toast Notification */}
+      {toast && (
+        <div 
+          id="toast-notification"
+          className={`fixed bottom-6 right-6 z-[9999] max-w-sm p-4 rounded-xl shadow-2xl flex items-start gap-3 transition-all duration-300 transform translate-y-0 animate-fade-in ${
+            toast.type === "success" 
+              ? "bg-slate-900/95 border border-emerald-500/40 text-emerald-200" 
+              : toast.type === "error"
+              ? "bg-slate-900/95 border border-rose-500/40 text-rose-200"
+              : "bg-slate-900/95 border border-blue-500/40 text-blue-200"
+          }`}
+        >
+          <div className="flex-1 text-xs font-semibold leading-relaxed">
+            <span className="font-bold block text-[10px] uppercase tracking-wider mb-0.5">
+              {toast.type === "success" ? "✓ ক্লাউড আপডেট সফল" : toast.type === "error" ? "⚠ ক্লাউড এরর" : "ℹ সিঙ্ক আপডেট"}
+            </span>
+            {toast.text}
+          </div>
+          <button 
+            onClick={() => setToast(null)} 
+            className="text-slate-400 hover:text-white p-0.5 rounded-lg text-xs"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
  
     </div>
   );

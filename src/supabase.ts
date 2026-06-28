@@ -92,6 +92,8 @@ CREATE TABLE IF NOT EXISTS momo_logs (
 -- পূর্বের ডাটাবেজ আপডেট করার জন্য নিচের কুয়েরিগুলো রান করুন (যদি অলরেডি টেবিল তৈরি থাকে):
 ALTER TABLE momo_logs ADD COLUMN IF NOT EXISTS paid_qty INTEGER DEFAULT 0;
 ALTER TABLE momo_logs ADD COLUMN IF NOT EXISTS purchase_price NUMERIC DEFAULT 8;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS payment_type TEXT DEFAULT 'Cash';
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS payment_details TEXT;
 
 -- ৯. সব টেবিলের RLS নিষ্ক্রিয় অথবা পাবলিক এক্সেস পলিসি তৈরি করুন
 ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
@@ -119,7 +121,32 @@ DROP POLICY IF EXISTS "Allow public read-write for staff_advances" ON staff_adva
 CREATE POLICY "Allow public read-write for staff_advances" ON staff_advances FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Allow public read-write for momo_logs" ON momo_logs;
-CREATE POLICY "Allow public read-write for momo_logs" ON momo_logs FOR ALL USING (true) WITH CHECK (true);`;
+CREATE POLICY "Allow public read-write for momo_logs" ON momo_logs FOR ALL USING (true) WITH CHECK (true);
+
+-- ১০. রিয়েলটাইম (Realtime) নিরাপদ উপায়ে সক্রিয় করার কুয়েরি:
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    CREATE PUBLICATION supabase_realtime;
+  END IF;
+END $$;
+
+DO $$
+DECLARE
+  t text;
+  tables_to_add text[] := ARRAY['settings', 'products', 'staff_codes', 'expense_categories', 'sales', 'expenses', 'staff_advances', 'momo_logs'];
+BEGIN
+  FOREACH t IN ARRAY tables_to_add LOOP
+    BEGIN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE %I', t);
+    EXCEPTION
+      WHEN duplicate_object THEN
+        NULL;
+      WHEN undefined_table THEN
+        NULL;
+    END;
+  END LOOP;
+END $$;`;
 
 // GRACEFUL SYNC HELPERS
 
@@ -203,8 +230,8 @@ export async function downloadProducts(): Promise<Product[] | null> {
   }));
 }
 
-export async function saveProduct(product: Product): Promise<void> {
-  if (!supabase) return;
+export async function saveProduct(product: Product): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) return { success: false, error: "Supabase is not configured." };
   try {
     const { error } = await supabase.from("products").upsert({
       id: product.id,
@@ -213,18 +240,22 @@ export async function saveProduct(product: Product): Promise<void> {
       created_at: product.createdAt
     });
     if (error) throw error;
-  } catch (err) {
+    return { success: true };
+  } catch (err: any) {
     console.error("Error saving product:", err);
+    return { success: false, error: err.message || String(err) };
   }
 }
 
-export async function deleteProductFromDb(id: string): Promise<void> {
-  if (!supabase) return;
+export async function deleteProductFromDb(id: string): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) return { success: false, error: "Supabase is not configured." };
   try {
     const { error } = await supabase.from("products").delete().eq("id", id);
     if (error) throw error;
-  } catch (err) {
+    return { success: true };
+  } catch (err: any) {
     console.error("Error deleting product:", err);
+    return { success: false, error: err.message || String(err) };
   }
 }
 
@@ -251,8 +282,8 @@ export async function downloadStaff(): Promise<StaffCode[] | null> {
   }));
 }
 
-export async function saveStaffCode(staff: StaffCode): Promise<void> {
-  if (!supabase) return;
+export async function saveStaffCode(staff: StaffCode): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) return { success: false, error: "Supabase is not configured." };
   try {
     const { error } = await supabase.from("staff_codes").upsert({
       code: staff.code,
@@ -260,18 +291,22 @@ export async function saveStaffCode(staff: StaffCode): Promise<void> {
       created_at: staff.createdAt
     });
     if (error) throw error;
-  } catch (err) {
+    return { success: true };
+  } catch (err: any) {
     console.error("Error saving staff code:", err);
+    return { success: false, error: err.message || String(err) };
   }
 }
 
-export async function deleteStaffCodeFromDb(code: string): Promise<void> {
-  if (!supabase) return;
+export async function deleteStaffCodeFromDb(code: string): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) return { success: false, error: "Supabase is not configured." };
   try {
     const { error } = await supabase.from("staff_codes").delete().eq("code", code);
     if (error) throw error;
-  } catch (err) {
+    return { success: true };
+  } catch (err: any) {
     console.error("Error deleting staff code:", err);
+    return { success: false, error: err.message || String(err) };
   }
 }
 
@@ -293,26 +328,30 @@ export async function downloadCategories(): Promise<ExpenseCategory[] | null> {
   return data as ExpenseCategory[];
 }
 
-export async function saveExpenseCategory(category: ExpenseCategory): Promise<void> {
-  if (!supabase) return;
+export async function saveExpenseCategory(category: ExpenseCategory): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) return { success: false, error: "Supabase is not configured." };
   try {
     const { error } = await supabase.from("expense_categories").upsert({
       id: category.id,
       name: category.name
     });
     if (error) throw error;
-  } catch (err) {
+    return { success: true };
+  } catch (err: any) {
     console.error("Error saving expense category:", err);
+    return { success: false, error: err.message || String(err) };
   }
 }
 
-export async function deleteExpenseCategoryFromDb(id: string): Promise<void> {
-  if (!supabase) return;
+export async function deleteExpenseCategoryFromDb(id: string): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) return { success: false, error: "Supabase is not configured." };
   try {
     const { error } = await supabase.from("expense_categories").delete().eq("id", id);
     if (error) throw error;
-  } catch (err) {
+    return { success: true };
+  } catch (err: any) {
     console.error("Error deleting expense category:", err);
+    return { success: false, error: err.message || String(err) };
   }
 }
 
@@ -366,8 +405,8 @@ export async function downloadSales(): Promise<Sale[] | null> {
   }));
 }
 
-export async function saveSale(sale: Sale): Promise<void> {
-  if (!supabase) return;
+export async function saveSale(sale: Sale): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) return { success: false, error: "Supabase is not configured." };
   try {
     const { error } = await supabase.from("sales").upsert({
       id: sale.id,
@@ -384,18 +423,22 @@ export async function saveSale(sale: Sale): Promise<void> {
       payment_details: sale.paymentDetails || ""
     });
     if (error) throw error;
-  } catch (err) {
+    return { success: true };
+  } catch (err: any) {
     console.error("Error saving sale:", err);
+    return { success: false, error: err.message || String(err) };
   }
 }
 
-export async function deleteSaleFromDb(id: string): Promise<void> {
-  if (!supabase) return;
+export async function deleteSaleFromDb(id: string): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) return { success: false, error: "Supabase is not configured." };
   try {
     const { error } = await supabase.from("sales").delete().eq("id", id);
     if (error) throw error;
-  } catch (err) {
+    return { success: true };
+  } catch (err: any) {
     console.error("Error deleting sale:", err);
+    return { success: false, error: err.message || String(err) };
   }
 }
 
@@ -436,8 +479,8 @@ export async function downloadExpenses(): Promise<Expense[] | null> {
   }));
 }
 
-export async function saveExpense(expense: Expense): Promise<void> {
-  if (!supabase) return;
+export async function saveExpense(expense: Expense): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) return { success: false, error: "Supabase is not configured." };
   try {
     const { error } = await supabase.from("expenses").upsert({
       id: expense.id,
@@ -448,18 +491,22 @@ export async function saveExpense(expense: Expense): Promise<void> {
       staff_code: expense.staffCode
     });
     if (error) throw error;
-  } catch (err) {
+    return { success: true };
+  } catch (err: any) {
     console.error("Error saving expense:", err);
+    return { success: false, error: err.message || String(err) };
   }
 }
 
-export async function deleteExpenseFromDb(id: string): Promise<void> {
-  if (!supabase) return;
+export async function deleteExpenseFromDb(id: string): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) return { success: false, error: "Supabase is not configured." };
   try {
     const { error } = await supabase.from("expenses").delete().eq("id", id);
     if (error) throw error;
-  } catch (err) {
+    return { success: true };
+  } catch (err: any) {
     console.error("Error deleting expense:", err);
+    return { success: false, error: err.message || String(err) };
   }
 }
 
@@ -498,8 +545,8 @@ export async function downloadStaffAdvances(): Promise<StaffAdvance[] | null> {
   }));
 }
 
-export async function saveStaffAdvance(advance: StaffAdvance): Promise<void> {
-  if (!supabase) return;
+export async function saveStaffAdvance(advance: StaffAdvance): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) return { success: false, error: "Supabase is not configured." };
   try {
     const { error } = await supabase.from("staff_advances").upsert({
       id: advance.id,
@@ -509,18 +556,22 @@ export async function saveStaffAdvance(advance: StaffAdvance): Promise<void> {
       note: advance.note || ""
     });
     if (error) throw error;
-  } catch (err) {
+    return { success: true };
+  } catch (err: any) {
     console.error("Error saving staff advance:", err);
+    return { success: false, error: err.message || String(err) };
   }
 }
 
-export async function deleteStaffAdvanceFromDb(id: string): Promise<void> {
-  if (!supabase) return;
+export async function deleteStaffAdvanceFromDb(id: string): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) return { success: false, error: "Supabase is not configured." };
   try {
     const { error } = await supabase.from("staff_advances").delete().eq("id", id);
     if (error) throw error;
-  } catch (err) {
+    return { success: true };
+  } catch (err: any) {
     console.error("Error deleting staff advance:", err);
+    return { success: false, error: err.message || String(err) };
   }
 }
 
@@ -597,8 +648,8 @@ export async function downloadMomoLogs(): Promise<MomoLog[] | null> {
   });
 }
 
-export async function saveMomoLog(log: MomoLog): Promise<void> {
-  if (!supabase) return;
+export async function saveMomoLog(log: MomoLog): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) return { success: false, error: "Supabase is not configured." };
   try {
     const { error } = await supabase.from("momo_logs").upsert({
       id: log.id,
@@ -614,18 +665,22 @@ export async function saveMomoLog(log: MomoLog): Promise<void> {
       note: log.note || ""
     });
     if (error) throw error;
-  } catch (err) {
+    return { success: true };
+  } catch (err: any) {
     console.error("Error saving momo log:", err);
+    return { success: false, error: err.message || String(err) };
   }
 }
 
-export async function deleteMomoLogFromDb(id: string): Promise<void> {
-  if (!supabase) return;
+export async function deleteMomoLogFromDb(id: string): Promise<{ success: boolean; error?: string }> {
+  if (!supabase) return { success: false, error: "Supabase is not configured." };
   try {
     const { error } = await supabase.from("momo_logs").delete().eq("id", id);
     if (error) throw error;
-  } catch (err) {
+    return { success: true };
+  } catch (err: any) {
     console.error("Error deleting momo log:", err);
+    return { success: false, error: err.message || String(err) };
   }
 }
 
