@@ -422,80 +422,51 @@ export default function App() {
 
         // 2. Fetch Products
         const dbProducts = await fetchProducts();
-        if (dbProducts && dbProducts.length > 0) {
+        if (dbProducts !== null) {
           setProducts(dbProducts);
           localStorage.setItem("tally_products", JSON.stringify(dbProducts));
-        } else if (products.length > 0) {
-          // Upload local products to DB to seed it
-          for (const p of products) {
-            await saveProduct(p);
-          }
         }
 
         // 3. Fetch Staff Codes
         const dbStaff = await fetchStaffCodes();
-        if (dbStaff && dbStaff.length > 0) {
+        if (dbStaff !== null) {
           setStaffCodes(dbStaff);
           localStorage.setItem("tally_staff", JSON.stringify(dbStaff));
-        } else if (staffCodes.length > 0) {
-          for (const s of staffCodes) {
-            await saveStaffCode(s);
-          }
         }
 
         // 4. Fetch Expense Categories
         const dbCategories = await fetchExpenseCategories();
-        if (dbCategories && dbCategories.length > 0) {
+        if (dbCategories !== null) {
           setCategories(dbCategories);
           localStorage.setItem("tally_categories", JSON.stringify(dbCategories));
-        } else if (categories.length > 0) {
-          for (const c of categories) {
-            await saveExpenseCategory(c);
-          }
         }
 
         // 5. Fetch Expenses
         const dbExpenses = await fetchExpenses();
-        if (dbExpenses && dbExpenses.length > 0) {
+        if (dbExpenses !== null) {
           setExpenses(dbExpenses);
           localStorage.setItem("tally_expenses", JSON.stringify(dbExpenses));
-        } else if (expenses.length > 0) {
-          for (const e of expenses) {
-            await saveExpense(e);
-          }
         }
 
         // 6. Fetch Sales
         const dbSales = await fetchSales();
-        if (dbSales && dbSales.length > 0) {
+        if (dbSales !== null) {
           setSales(dbSales);
           localStorage.setItem("tally_sales", JSON.stringify(dbSales));
-        } else if (sales.length > 0) {
-          for (const s of sales) {
-            await saveSale(s);
-          }
         }
 
         // 7. Fetch Staff Advances
         const dbAdvances = await fetchStaffAdvances();
-        if (dbAdvances && dbAdvances.length > 0) {
+        if (dbAdvances !== null) {
           setStaffAdvances(dbAdvances);
           localStorage.setItem("tally_staff_advances", JSON.stringify(dbAdvances));
-        } else if (staffAdvances.length > 0) {
-          for (const a of staffAdvances) {
-            await saveStaffAdvance(a);
-          }
         }
 
         // 8. Fetch Momo Logs
         const dbMomoLogs = await fetchMomoLogs();
-        if (dbMomoLogs && dbMomoLogs.length > 0) {
+        if (dbMomoLogs !== null) {
           setMomoLogs(dbMomoLogs);
           localStorage.setItem("tally_momo_logs", JSON.stringify(dbMomoLogs));
-        } else if (momoLogs.length > 0) {
-          for (const l of momoLogs) {
-            await saveMomoLog(l);
-          }
         }
 
         setSupabaseStatus("connected");
