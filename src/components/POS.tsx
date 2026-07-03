@@ -221,27 +221,27 @@ export default function POS({ products, staffCodes, onSaleComplete }: POSProps) 
             কোন পণ্য খুঁজে পাওয়া যায়নি। এডমিন প্যানেল থেকে নতুন পণ্য যোগ করতে পারেন।
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
             {filteredProducts.map((product) => (
               <button
                 key={product.id}
                 onClick={() => addToCart(product)}
-                className="bg-white p-4 rounded-2xl border border-slate-200 hover:border-blue-300 text-left hover:shadow-md hover:shadow-blue-50/40 transition-all cursor-pointer flex flex-col justify-between h-36 relative group"
+                className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200 hover:border-blue-300 text-left hover:shadow-md hover:shadow-blue-50/40 transition-all cursor-pointer flex flex-col justify-between h-32 sm:h-36 relative group"
               >
                 {/* Price Tag */}
-                <span className="absolute top-3 right-3 text-[10px] font-bold bg-blue-50 text-blue-700 px-2 py-1 rounded-md">
+                <span className="absolute top-2.5 right-2.5 text-[10px] sm:text-[11px] font-bold bg-blue-50 text-blue-700 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md">
                   ৳{product.price}
                 </span>
 
-                <div className="pt-4 pr-6">
-                  <h4 className="font-bold text-slate-800 text-xs line-clamp-2 leading-relaxed">
+                <div className="pt-4 pr-5 sm:pr-6">
+                  <h4 className="font-bold text-slate-800 text-[11px] sm:text-xs line-clamp-2 leading-relaxed">
                     {product.name}
                   </h4>
                 </div>
 
                 <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 w-full text-slate-400 group-hover:text-blue-600 transition-colors">
-                  <span className="text-[10px] font-semibold">কার্টে যোগ করুন</span>
-                  <Plus className="w-4 h-4 p-0.5 bg-slate-50 group-hover:bg-blue-50 rounded-full text-blue-600" />
+                  <span className="text-[9px] sm:text-[10px] font-semibold">কার্টে যোগ করুন</span>
+                  <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 p-0.5 bg-slate-50 group-hover:bg-blue-50 rounded-full text-blue-600" />
                 </div>
               </button>
             ))}
@@ -588,9 +588,11 @@ export default function POS({ products, staffCodes, onSaleComplete }: POSProps) 
 
       {/* MOBILE FULLSCREEN CART DRAWER MODAL */}
       {isMobileCartOpen && (
-        <div className="lg:hidden fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex flex-col justify-end z-50">
-          <div className="bg-white rounded-t-3xl max-h-[90vh] overflow-y-auto p-6 space-y-6 flex flex-col shadow-2xl border-t border-slate-100">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="lg:hidden fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex flex-col justify-end z-50 animate-fade-in">
+          <div className="bg-white rounded-t-3xl h-[85vh] flex flex-col shadow-2xl border-t border-slate-100 overflow-hidden">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 bg-white shrink-0">
               <div className="flex items-center gap-2">
                 <ShoppingCart className="w-5 h-5 text-blue-600" />
                 <h3 className="font-bold text-slate-800 text-sm">হিসাব ও মেমো এন্ট্রি</h3>
@@ -598,293 +600,322 @@ export default function POS({ products, staffCodes, onSaleComplete }: POSProps) 
               <button
                 id="close-mobile-cart-btn"
                 onClick={() => setIsMobileCartOpen(false)}
-                className="text-slate-400 hover:text-slate-600 text-xs font-bold bg-slate-100 px-3 py-1.5 rounded-lg"
+                className="text-slate-500 hover:text-slate-700 text-xs font-bold bg-slate-100 hover:bg-slate-200 px-3.5 py-1.5 rounded-xl transition-all cursor-pointer"
               >
                 বন্ধ করুন
               </button>
             </div>
 
-            {/* Error Notification inside drawer */}
-            {errorMsg && (
-              <div className="p-3 bg-rose-50 border border-rose-100 text-rose-700 text-xs rounded-xl font-medium leading-relaxed">
-                ⚠️ {errorMsg}
-              </div>
-            )}
-
-            {/* Mobile Cart Items */}
-            {cart.length === 0 ? (
-              <div className="py-8 text-center text-slate-400 text-xs">
-                ঝুড়ি খালি! বিক্রয় করতে পণ্যে ক্লিক করুন।
-              </div>
-            ) : (
-              <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
-                {cart.map((item) => (
-                  <div key={item.product.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl gap-2">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-slate-800 text-xs truncate">{item.product.name}</h4>
-                      <span className="text-[10px] text-slate-400 block mt-0.5">৳{item.product.price} / প্রতি ইউনিট</span>
-                    </div>
-
-                    {/* Qty Controllers */}
-                    <div className="flex items-center bg-white rounded-lg border border-slate-100 p-1 gap-1">
-                      <button
-                        type="button"
-                        onClick={() => updateQuantity(item.product.id, -1)}
-                        className="p-1 hover:bg-slate-50 text-slate-500 rounded cursor-pointer"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => triggerKeypad("quantity", `${item.product.name} এর পরিমাণ`, item.quantity, item.product.id)}
-                        className="text-xs font-extrabold px-1.5 min-w-[24px] text-center text-blue-600 hover:bg-blue-50 rounded py-0.5 transition-colors cursor-pointer"
-                        title="কাস্টম কীবোর্ড দিয়ে ইনপুট"
-                      >
-                        {item.quantity}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateQuantity(item.product.id, 1)}
-                        className="p-1 hover:bg-slate-50 text-slate-500 rounded cursor-pointer"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    </div>
-
-                    {/* Subtotal & Delete */}
-                    <div className="flex items-center gap-2 pl-1">
-                      <span className="text-xs font-extrabold text-slate-800">৳{item.product.price * item.quantity}</span>
-                      <button
-                        onClick={() => removeFromCart(item.product.id)}
-                        className="text-slate-300 hover:text-rose-500 transition-colors p-1"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-             {/* Form */}
-            <form onSubmit={handleCheckout} className="space-y-4 border-t border-slate-100 pt-4">
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
               
-              {/* Sale Mode Selection */}
-              <div className="p-3 bg-slate-50 border border-slate-200/60 rounded-2xl space-y-2">
-                <label className="text-[11px] font-bold text-slate-500 block">বিক্রয়ের সময় (Sale Time Mode)</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSaleMode("current")}
-                    className={`py-1.5 px-2 rounded-xl text-[10px] font-bold text-center transition-all cursor-pointer ${
-                      saleMode === "current"
-                        ? "bg-blue-600 text-white shadow-sm shadow-blue-100"
-                        : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    আজকের বিক্রয়
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSaleMode("backdated")}
-                    className={`py-1.5 px-2 rounded-xl text-[10px] font-bold text-center transition-all cursor-pointer ${
-                      saleMode === "backdated"
-                        ? "bg-blue-600 text-white shadow-sm shadow-blue-100"
-                        : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    আগের বিক্রয় (কাস্টম ডেট)
-                  </button>
+              {/* Error Notification inside drawer */}
+              {errorMsg && (
+                <div className="p-3 bg-rose-50 border border-rose-100 text-rose-700 text-xs rounded-xl font-medium leading-relaxed">
+                  ⚠️ {errorMsg}
                 </div>
+              )}
 
-                {saleMode === "backdated" && (
-                  <div className="space-y-1 pt-1.5 border-t border-slate-200/50 mt-1.5">
-                    <label className="text-[10px] font-bold text-slate-500 block">বিক্রয়ের তারিখ নির্ধারণ করুন:</label>
-                    <input
-                      type="date"
-                      value={customSaleDate}
-                      onChange={(e) => setCustomSaleDate(e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800"
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Salesman input */}
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-slate-500 block">বিক্রয়কর্মী কোড *</label>
-                <div className="relative">
-                  <input
-                    type={(selectedStaff.toUpperCase() === "ADMIN" || staffCodes.some(s => s.code.toUpperCase() === selectedStaff.toUpperCase())) ? "password" : (showStaffCode ? "text" : "password")}
-                    value={selectedStaff}
-                    onChange={(e) => {
-                      const val = e.target.value.toUpperCase();
-                      setSelectedStaff(val);
-                      const matched = staffCodes.find(s => s.code.toUpperCase() === val);
-                      if (matched) {
-                        localStorage.setItem("activeStaffCode", val);
-                      }
-                    }}
-                    placeholder="বিক্রয়কর্মী কোড লিখুন..."
-                    className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-blue-500 focus:bg-white transition-all text-slate-800 placeholder:text-slate-400"
-                  />
-                  {!(selectedStaff.toUpperCase() === "ADMIN" || staffCodes.some(s => s.code.toUpperCase() === selectedStaff.toUpperCase())) && (
+              {/* Mobile Cart Items */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">কার্ট আইটেম সমূহ ({cart.length}টি)</span>
+                  {cart.length > 0 && (
                     <button
                       type="button"
-                      onClick={() => setShowStaffCode(!showStaffCode)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      onClick={() => {
+                        setCart([]);
+                        setErrorMsg("");
+                      }}
+                      className="text-[10px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 px-2 py-1 rounded-lg transition-colors cursor-pointer"
                     >
-                      {showStaffCode ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
+                      সব সাফ করুন (Clear All)
                     </button>
                   )}
                 </div>
-                {selectedStaff && (() => {
-                  if (selectedStaff.toUpperCase() === "ADMIN") {
-                    return (
-                      <p className="text-[10px] text-emerald-600 font-bold flex items-center gap-1 mt-1">
-                        <span>● কর্মী: এডমিন (মালিক) ✅</span>
-                      </p>
-                    );
-                  }
-                  const matched = staffCodes.find(s => s.code.toUpperCase() === selectedStaff.toUpperCase());
-                  return matched ? (
-                    <p className="text-[10px] text-emerald-600 font-bold flex items-center gap-1 mt-1">
-                      <span>● কর্মী: {matched.name} ✅</span>
-                    </p>
-                  ) : (
-                    <p className="text-[10px] text-rose-500 font-bold flex items-center gap-1 mt-1">
-                      <span>● অকার্যকর বা ভুল কোড ❌</span>
-                    </p>
-                  );
-                })()}
-              </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-slate-500 block">ডিসকাউন্ট বা ছাড় (৳)</label>
-                <div className="flex gap-1.5">
-                  <input
-                    type="number"
-                    min="0"
-                    max={subtotal}
-                    placeholder="0"
-                    value={discount || ""}
-                    onChange={(e) => setDiscount(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                    className="w-full flex-1 px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-semibold focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => triggerKeypad("discount", "ডিসকাউন্ট বা ছাড় (Discount Amount)", discount)}
-                    className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl border border-blue-200 cursor-pointer text-xs flex items-center justify-center transition-all"
-                    title="কাস্টম কীবোর্ড"
-                  >
-                    <Keyboard className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
+                {cart.length === 0 ? (
+                  <div className="py-10 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs">
+                    ঝুড়ি খালি! বিক্রয় করতে পণ্যে ক্লিক করুন।
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {cart.map((item) => (
+                      <div key={item.product.id} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded-xl gap-2">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-bold text-slate-800 text-xs truncate">{item.product.name}</h4>
+                          <span className="text-[10px] text-slate-400 block mt-0.5">৳{item.product.price} / প্রতি ইউনিট</span>
+                        </div>
 
-              <div className="bg-slate-50 p-4 rounded-2xl space-y-2 border border-slate-100">
-                <div className="flex justify-between text-xs text-slate-500">
-                  <span>উপ-মোট বিল:</span>
-                  <span className="font-bold">{formatCurrency(subtotal)}</span>
-                </div>
-                {discount > 0 && (
-                  <div className="flex justify-between text-xs text-amber-600 font-medium">
-                    <span>ছাড়:</span>
-                    <span>-{formatCurrency(discount)}</span>
+                        {/* Qty Controllers */}
+                        <div className="flex items-center bg-white rounded-lg border border-slate-200 p-1 gap-1 shadow-sm shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => updateQuantity(item.product.id, -1)}
+                            className="p-1 hover:bg-slate-50 text-slate-500 rounded cursor-pointer"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => triggerKeypad("quantity", `${item.product.name} এর পরিমাণ`, item.quantity, item.product.id)}
+                            className="text-xs font-extrabold px-1.5 min-w-[24px] text-center text-blue-600 hover:bg-blue-50 rounded py-0.5 transition-colors cursor-pointer"
+                            title="কাস্টম কীবোর্ড দিয়ে ইনপুট"
+                          >
+                            {item.quantity}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateQuantity(item.product.id, 1)}
+                            className="p-1 hover:bg-slate-50 text-slate-500 rounded cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Subtotal & Delete */}
+                        <div className="flex items-center gap-2 pl-1 shrink-0">
+                          <span className="text-xs font-extrabold text-slate-800">৳{item.product.price * item.quantity}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeFromCart(item.product.id)}
+                            className="text-slate-300 hover:text-rose-500 transition-colors p-1"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
-                <div className="flex justify-between text-sm font-bold text-slate-800 border-t border-slate-200/50 pt-2">
-                  <span>সর্বমোট প্রদেয়:</span>
-                  <span className="text-blue-700 text-base">{formatCurrency(total)}</span>
+              </div>
+
+              {/* Form */}
+              <form onSubmit={handleCheckout} className="space-y-4 border-t border-slate-100 pt-4">
+                
+                {/* Sale Mode Selection */}
+                <div className="p-3 bg-slate-50 border border-slate-200/60 rounded-2xl space-y-2">
+                  <label className="text-[11px] font-bold text-slate-500 block">বিক্রয়ের সময় (Sale Time Mode)</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSaleMode("current")}
+                      className={`py-1.5 px-2 rounded-xl text-[10px] font-bold text-center transition-all cursor-pointer ${
+                        saleMode === "current"
+                          ? "bg-blue-600 text-white shadow-sm shadow-blue-100"
+                          : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      আজকের বিক্রয়
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSaleMode("backdated")}
+                      className={`py-1.5 px-2 rounded-xl text-[10px] font-bold text-center transition-all cursor-pointer ${
+                        saleMode === "backdated"
+                          ? "bg-blue-600 text-white shadow-sm shadow-blue-100"
+                          : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      আগের বিক্রয় (কাস্টম ডেট)
+                    </button>
+                  </div>
+
+                  {saleMode === "backdated" && (
+                    <div className="space-y-1 pt-1.5 border-t border-slate-200/50 mt-1.5">
+                      <label className="text-[10px] font-bold text-slate-500 block">বিক্রয়ের তারিখ নির্ধারণ করুন:</label>
+                      <input
+                        type="date"
+                        value={customSaleDate}
+                        onChange={(e) => setCustomSaleDate(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800"
+                      />
+                    </div>
+                  )}
                 </div>
-              </div>
 
-              {/* Payment Type Selection */}
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-slate-500 block">পেমেন্ট টাইপ (Payment Type) *</label>
-                <select
-                  value={paymentType}
-                  onChange={(e) => {
-                    const val = e.target.value as any;
-                    setPaymentType(val);
-                    if (val === "Cash") {
-                      setPaymentDetails("");
-                    }
-                  }}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
-                >
-                  <option value="Cash">Cash (নগদ)</option>
-                  <option value="bKash">bKash (বিকাশ)</option>
-                  <option value="Nogod">Nogod (নগদ অ্যাপ)</option>
-                  <option value="Rocket">Rocket (রকেট)</option>
-                  <option value="Card">Card (কার্ড)</option>
-                  <option value="Others">Others (অন্যান্য)</option>
-                </select>
-              </div>
-
-              {paymentType !== "Cash" && (
+                {/* Salesman input */}
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-slate-500 block">
-                    {paymentType === "Others" ? "অন্যান্য পেমেন্টের বিবরণী লিখুন *" : "লেনদেন বিবরণী / ট্রানজেকশন ID (ঐচ্ছিক)"}
-                  </label>
-                  <input
-                    type="text"
-                    required={paymentType === "Others"}
-                    placeholder={paymentType === "Others" ? "যেমন: ব্যাংক ট্রান্সফার, কুরিয়ার পেমেন্ট..." : "যেমন: TxnID বা কার্ডের শেষ ৪ ডিজিট..."}
-                    value={paymentDetails}
-                    onChange={(e) => setPaymentDetails(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
-                  />
+                  <label className="text-[11px] font-bold text-slate-500 block">বিক্রয়কর্মী কোড *</label>
+                  <div className="relative">
+                    <input
+                      type={(selectedStaff.toUpperCase() === "ADMIN" || staffCodes.some(s => s.code.toUpperCase() === selectedStaff.toUpperCase())) ? "password" : (showStaffCode ? "text" : "password")}
+                      value={selectedStaff}
+                      onChange={(e) => {
+                        const val = e.target.value.toUpperCase();
+                        setSelectedStaff(val);
+                        const matched = staffCodes.find(s => s.code.toUpperCase() === val);
+                        if (matched) {
+                          localStorage.setItem("activeStaffCode", val);
+                        }
+                      }}
+                      placeholder="বিক্রয়কর্মী কোড লিখুন..."
+                      className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:border-blue-500 focus:bg-white transition-all text-slate-800 placeholder:text-slate-400"
+                    />
+                    {!(selectedStaff.toUpperCase() === "ADMIN" || staffCodes.some(s => s.code.toUpperCase() === selectedStaff.toUpperCase())) && (
+                      <button
+                        type="button"
+                        onClick={() => setShowStaffCode(!showStaffCode)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        {showStaffCode ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
+                      </button>
+                    )}
+                  </div>
+                  {selectedStaff && (() => {
+                    if (selectedStaff.toUpperCase() === "ADMIN") {
+                      return (
+                        <p className="text-[10px] text-emerald-600 font-bold flex items-center gap-1 mt-1">
+                          <span>● কর্মী: এডমিন (মালিক) ✅</span>
+                        </p>
+                      );
+                    }
+                    const matched = staffCodes.find(s => s.code.toUpperCase() === selectedStaff.toUpperCase());
+                    return matched ? (
+                      <p className="text-[10px] text-emerald-600 font-bold flex items-center gap-1 mt-1">
+                        <span>● কর্মী: {matched.name} ✅</span>
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-rose-500 font-bold flex items-center gap-1 mt-1">
+                        <span>● অকার্যকর বা ভুল কোড ❌</span>
+                      </p>
+                    );
+                  })()}
                 </div>
-              )}
 
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center">
-                  <label className="text-[11px] font-bold text-slate-500 block">গৃহীত নগদ টাকা (৳) *</label>
-                  <button
-                    type="button"
-                    onClick={handleQuickExactPayment}
-                    className="text-[10px] text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded-sm cursor-pointer"
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-500 block">ডিসকাউন্ট বা ছাড় (৳)</label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="number"
+                      min="0"
+                      max={subtotal}
+                      placeholder="0"
+                      value={discount || ""}
+                      onChange={(e) => setDiscount(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                      className="w-full flex-1 px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-semibold focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => triggerKeypad("discount", "ডিসকাউন্ট বা ছাড় (Discount Amount)", discount)}
+                      className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl border border-blue-200 cursor-pointer text-xs flex items-center justify-center transition-all shrink-0"
+                      title="কাস্টম কীবোর্ড"
+                    >
+                      <Keyboard className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-4 rounded-2xl space-y-2 border border-slate-100">
+                  <div className="flex justify-between text-xs text-slate-500">
+                    <span>উপ-মোট বিল:</span>
+                    <span className="font-bold">{formatCurrency(subtotal)}</span>
+                  </div>
+                  {discount > 0 && (
+                    <div className="flex justify-between text-xs text-amber-600 font-medium">
+                      <span>ছাড়:</span>
+                      <span>-{formatCurrency(discount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm font-bold text-slate-800 border-t border-slate-200/50 pt-2">
+                    <span>সর্বমোট প্রদেয়:</span>
+                    <span className="text-blue-700 text-base">{formatCurrency(total)}</span>
+                  </div>
+                </div>
+
+                {/* Payment Type Selection */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-500 block">পেমেন্ট টাইপ (Payment Type) *</label>
+                  <select
+                    value={paymentType}
+                    onChange={(e) => {
+                      const val = e.target.value as any;
+                      setPaymentType(val);
+                      if (val === "Cash") {
+                        setPaymentDetails("");
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
                   >
-                    Exact Pay
-                  </button>
+                    <option value="Cash">Cash (নগদ)</option>
+                    <option value="bKash">bKash (বিকাশ)</option>
+                    <option value="Nogod">Nogod (নগদ অ্যাপ)</option>
+                    <option value="Rocket">Rocket (রকেট)</option>
+                    <option value="Card">Card (কার্ড)</option>
+                    <option value="Others">Others (অন্যান্য)</option>
+                  </select>
                 </div>
-                <div className="flex gap-1.5">
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    placeholder="0"
-                    value={receivedAmount || ""}
-                    onChange={(e) => setReceivedAmount(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                    className="w-full flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold focus:outline-none focus:border-blue-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => triggerKeypad("receivedAmount", "গৃহীত নগদ টাকা (Received Cash)", receivedAmount)}
-                    className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl border border-blue-200 cursor-pointer text-xs flex items-center justify-center transition-all"
-                    title="কাস্টম কীবোর্ড"
-                  >
-                    <Keyboard className="w-4 h-4" />
-                  </button>
+
+                {paymentType !== "Cash" && (
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-slate-500 block">
+                      {paymentType === "Others" ? "অন্যান্য পেমেন্টের বিবরণী লিখুন *" : "লেনদেন বিবরণী / ট্রানজেকশন ID (ঐচ্ছিক)"}
+                    </label>
+                    <input
+                      type="text"
+                      required={paymentType === "Others"}
+                      placeholder={paymentType === "Others" ? "যেমন: ব্যাংক ট্রান্সফার, কুরিয়ার পেমেন্ট..." : "যেমন: TxnID বা কার্ডের শেষ ৪ ডিজিট..."}
+                      value={paymentDetails}
+                      onChange={(e) => setPaymentDetails(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 focus:bg-white transition-all text-slate-800"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[11px] font-bold text-slate-500 block">গৃহীত নগদ টাকা (৳) *</label>
+                    <button
+                      type="button"
+                      onClick={handleQuickExactPayment}
+                      className="text-[10px] text-blue-700 font-bold bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md cursor-pointer transition-colors"
+                    >
+                      Exact Pay
+                    </button>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      placeholder="0"
+                      value={receivedAmount || ""}
+                      onChange={(e) => setReceivedAmount(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                      className="w-full flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-extrabold text-slate-800 focus:outline-none focus:border-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => triggerKeypad("receivedAmount", "গৃহীত নগদ টাকা (Received Cash)", receivedAmount)}
+                      className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl border border-blue-200 cursor-pointer text-xs flex items-center justify-center transition-all shrink-0"
+                      title="কাস্টম কীবোর্ড"
+                    >
+                      <Keyboard className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              {receivedAmount > total && (
-                <div className="flex justify-between items-center p-3 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-800 font-bold">
-                  <span>খদ্দেরকে ফেরত দিন:</span>
-                  <span className="text-base">{formatCurrency(changeAmount)}</span>
-                </div>
-              )}
+                {receivedAmount > total && (
+                  <div className="flex justify-between items-center p-3 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-800 font-bold">
+                    <span>খদ্দেরকে ফেরত দিন:</span>
+                    <span className="text-base">{formatCurrency(changeAmount)}</span>
+                  </div>
+                )}
 
-              <button
-                type="submit"
-                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-sm shadow-blue-100"
-              >
-                মেমো জেনারেট করুন (রশিদ তৈরী)
-              </button>
+                <button
+                  type="submit"
+                  disabled={cart.length === 0}
+                  className={`w-full py-3.5 rounded-xl font-bold text-xs text-white transition-all flex items-center justify-center gap-1.5 shadow-md shadow-blue-100 ${
+                    cart.length === 0
+                      ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
+                      : "bg-blue-600 hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-200"
+                  }`}
+                >
+                  <CheckCircle className="w-4.5 h-4.5" />
+                  <span>মেমো জেনারেট করুন (রশিদ তৈরী)</span>
+                </button>
 
-            </form>
+              </form>
+            </div>
           </div>
         </div>
       )}
