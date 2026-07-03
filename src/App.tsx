@@ -109,6 +109,21 @@ export default function App() {
     return stored !== "false";
   });
 
+  // Local blacklist of deleted item IDs to ensure background pulls never restore them
+  const [deletedIds, setDeletedIds] = React.useState<Set<string>>(() => {
+    const stored = localStorage.getItem("tally_deleted_ids");
+    return stored ? new Set(JSON.parse(stored)) : new Set<string>();
+  });
+
+  const registerDeletedId = React.useCallback((id: string) => {
+    setDeletedIds((prev) => {
+      const updated = new Set(prev);
+      updated.add(id);
+      localStorage.setItem("tally_deleted_ids", JSON.stringify(Array.from(updated)));
+      return updated;
+    });
+  }, []);
+
   // Global Toast Notifications
   const [toast, setToast] = React.useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
 
@@ -194,6 +209,9 @@ export default function App() {
       const dbAdvances = await fetchStaffAdvances();
       const dbMomoLogs = await fetchMomoLogs();
 
+      const rawDeleted = localStorage.getItem("tally_deleted_ids");
+      const blacklisted = rawDeleted ? new Set<string>(JSON.parse(rawDeleted)) : new Set<string>();
+
       if (dbStore) {
         setStoreName(dbStore.storeName);
         localStorage.setItem("tally_store_name", dbStore.storeName);
@@ -201,32 +219,39 @@ export default function App() {
         localStorage.setItem("tally_admin_password", dbStore.adminPasswordHash);
       }
       if (dbProducts) {
-         setProducts(dbProducts);
-         localStorage.setItem("tally_products", JSON.stringify(dbProducts));
+         const filtered = dbProducts.filter(p => !blacklisted.has(p.id));
+         setProducts(filtered);
+         localStorage.setItem("tally_products", JSON.stringify(filtered));
       }
       if (dbStaff) {
-         setStaffCodes(dbStaff);
-         localStorage.setItem("tally_staff", JSON.stringify(dbStaff));
+         const filtered = dbStaff.filter(s => !blacklisted.has(s.code));
+         setStaffCodes(filtered);
+         localStorage.setItem("tally_staff", JSON.stringify(filtered));
       }
       if (dbCategories) {
-         setCategories(dbCategories);
-         localStorage.setItem("tally_categories", JSON.stringify(dbCategories));
+         const filtered = dbCategories.filter(c => !blacklisted.has(c.id));
+         setCategories(filtered);
+         localStorage.setItem("tally_categories", JSON.stringify(filtered));
       }
       if (dbExpenses) {
-         setExpenses(dbExpenses);
-         localStorage.setItem("tally_expenses", JSON.stringify(dbExpenses));
+         const filtered = dbExpenses.filter(e => !blacklisted.has(e.id));
+         setExpenses(filtered);
+         localStorage.setItem("tally_expenses", JSON.stringify(filtered));
       }
       if (dbSales) {
-         setSales(dbSales);
-         localStorage.setItem("tally_sales", JSON.stringify(dbSales));
+         const filtered = dbSales.filter(s => !blacklisted.has(s.id));
+         setSales(filtered);
+         localStorage.setItem("tally_sales", JSON.stringify(filtered));
       }
       if (dbAdvances) {
-         setStaffAdvances(dbAdvances);
-         localStorage.setItem("tally_staff_advances", JSON.stringify(dbAdvances));
+         const filtered = dbAdvances.filter(a => !blacklisted.has(a.id));
+         setStaffAdvances(filtered);
+         localStorage.setItem("tally_staff_advances", JSON.stringify(filtered));
       }
       if (dbMomoLogs) {
-         setMomoLogs(dbMomoLogs);
-         localStorage.setItem("tally_momo_logs", JSON.stringify(dbMomoLogs));
+         const filtered = dbMomoLogs.filter(l => !blacklisted.has(l.id));
+         setMomoLogs(filtered);
+         localStorage.setItem("tally_momo_logs", JSON.stringify(filtered));
       }
 
       setSupabaseStatus("connected");
@@ -242,6 +267,9 @@ export default function App() {
   const handleSilentSupabasePull = async () => {
     if (!isSupabaseConfigured || !supabaseAutoSync || supabaseStatus !== "connected") return;
     try {
+      const rawDeleted = localStorage.getItem("tally_deleted_ids");
+      const blacklisted = rawDeleted ? new Set<string>(JSON.parse(rawDeleted)) : new Set<string>();
+
       const dbStore = await fetchStoreSettings();
       if (dbStore) {
         setStoreName(prev => {
@@ -262,11 +290,12 @@ export default function App() {
 
       const dbProducts = await fetchProducts();
       if (dbProducts) {
+        const filtered = dbProducts.filter(p => !blacklisted.has(p.id));
         setProducts(prev => {
-          const dbStr = JSON.stringify(dbProducts);
+          const dbStr = JSON.stringify(filtered);
           if (JSON.stringify(prev) !== dbStr) {
             localStorage.setItem("tally_products", dbStr);
-            return dbProducts;
+            return filtered;
           }
           return prev;
         });
@@ -274,11 +303,12 @@ export default function App() {
 
       const dbStaff = await fetchStaffCodes();
       if (dbStaff) {
+        const filtered = dbStaff.filter(s => !blacklisted.has(s.code));
         setStaffCodes(prev => {
-          const dbStr = JSON.stringify(dbStaff);
+          const dbStr = JSON.stringify(filtered);
           if (JSON.stringify(prev) !== dbStr) {
             localStorage.setItem("tally_staff", dbStr);
-            return dbStaff;
+            return filtered;
           }
           return prev;
         });
@@ -286,11 +316,12 @@ export default function App() {
 
       const dbCategories = await fetchExpenseCategories();
       if (dbCategories) {
+        const filtered = dbCategories.filter(c => !blacklisted.has(c.id));
         setCategories(prev => {
-          const dbStr = JSON.stringify(dbCategories);
+          const dbStr = JSON.stringify(filtered);
           if (JSON.stringify(prev) !== dbStr) {
             localStorage.setItem("tally_categories", dbStr);
-            return dbCategories;
+            return filtered;
           }
           return prev;
         });
@@ -298,11 +329,12 @@ export default function App() {
 
       const dbExpenses = await fetchExpenses();
       if (dbExpenses) {
+        const filtered = dbExpenses.filter(e => !blacklisted.has(e.id));
         setExpenses(prev => {
-          const dbStr = JSON.stringify(dbExpenses);
+          const dbStr = JSON.stringify(filtered);
           if (JSON.stringify(prev) !== dbStr) {
             localStorage.setItem("tally_expenses", dbStr);
-            return dbExpenses;
+            return filtered;
           }
           return prev;
         });
@@ -310,11 +342,12 @@ export default function App() {
 
       const dbSales = await fetchSales();
       if (dbSales) {
+        const filtered = dbSales.filter(s => !blacklisted.has(s.id));
         setSales(prev => {
-          const dbStr = JSON.stringify(dbSales);
+          const dbStr = JSON.stringify(filtered);
           if (JSON.stringify(prev) !== dbStr) {
             localStorage.setItem("tally_sales", dbStr);
-            return dbSales;
+            return filtered;
           }
           return prev;
         });
@@ -322,11 +355,12 @@ export default function App() {
 
       const dbAdvances = await fetchStaffAdvances();
       if (dbAdvances) {
+        const filtered = dbAdvances.filter(a => !blacklisted.has(a.id));
         setStaffAdvances(prev => {
-          const dbStr = JSON.stringify(dbAdvances);
+          const dbStr = JSON.stringify(filtered);
           if (JSON.stringify(prev) !== dbStr) {
             localStorage.setItem("tally_staff_advances", dbStr);
-            return dbAdvances;
+            return filtered;
           }
           return prev;
         });
@@ -334,11 +368,12 @@ export default function App() {
 
       const dbMomoLogs = await fetchMomoLogs();
       if (dbMomoLogs) {
+        const filtered = dbMomoLogs.filter(l => !blacklisted.has(l.id));
         setMomoLogs(prev => {
-          const dbStr = JSON.stringify(dbMomoLogs);
+          const dbStr = JSON.stringify(filtered);
           if (JSON.stringify(prev) !== dbStr) {
             localStorage.setItem("tally_momo_logs", dbStr);
-            return dbMomoLogs;
+            return filtered;
           }
           return prev;
         });
@@ -420,53 +455,63 @@ export default function App() {
           await upsertStoreSetting("tally_admin_password", adminPasswordHash);
         }
 
+        const rawDeleted = localStorage.getItem("tally_deleted_ids");
+        const blacklisted = rawDeleted ? new Set<string>(JSON.parse(rawDeleted)) : new Set<string>();
+
         // 2. Fetch Products
         const dbProducts = await fetchProducts();
         if (dbProducts !== null) {
-          setProducts(dbProducts);
-          localStorage.setItem("tally_products", JSON.stringify(dbProducts));
+          const filtered = dbProducts.filter(p => !blacklisted.has(p.id));
+          setProducts(filtered);
+          localStorage.setItem("tally_products", JSON.stringify(filtered));
         }
 
         // 3. Fetch Staff Codes
         const dbStaff = await fetchStaffCodes();
         if (dbStaff !== null) {
-          setStaffCodes(dbStaff);
-          localStorage.setItem("tally_staff", JSON.stringify(dbStaff));
+          const filtered = dbStaff.filter(s => !blacklisted.has(s.code));
+          setStaffCodes(filtered);
+          localStorage.setItem("tally_staff", JSON.stringify(filtered));
         }
 
         // 4. Fetch Expense Categories
         const dbCategories = await fetchExpenseCategories();
         if (dbCategories !== null) {
-          setCategories(dbCategories);
-          localStorage.setItem("tally_categories", JSON.stringify(dbCategories));
+          const filtered = dbCategories.filter(c => !blacklisted.has(c.id));
+          setCategories(filtered);
+          localStorage.setItem("tally_categories", JSON.stringify(filtered));
         }
 
         // 5. Fetch Expenses
         const dbExpenses = await fetchExpenses();
         if (dbExpenses !== null) {
-          setExpenses(dbExpenses);
-          localStorage.setItem("tally_expenses", JSON.stringify(dbExpenses));
+          const filtered = dbExpenses.filter(e => !blacklisted.has(e.id));
+          setExpenses(filtered);
+          localStorage.setItem("tally_expenses", JSON.stringify(filtered));
         }
 
         // 6. Fetch Sales
         const dbSales = await fetchSales();
         if (dbSales !== null) {
-          setSales(dbSales);
-          localStorage.setItem("tally_sales", JSON.stringify(dbSales));
+          const filtered = dbSales.filter(s => !blacklisted.has(s.id));
+          setSales(filtered);
+          localStorage.setItem("tally_sales", JSON.stringify(filtered));
         }
 
         // 7. Fetch Staff Advances
         const dbAdvances = await fetchStaffAdvances();
         if (dbAdvances !== null) {
-          setStaffAdvances(dbAdvances);
-          localStorage.setItem("tally_staff_advances", JSON.stringify(dbAdvances));
+          const filtered = dbAdvances.filter(a => !blacklisted.has(a.id));
+          setStaffAdvances(filtered);
+          localStorage.setItem("tally_staff_advances", JSON.stringify(filtered));
         }
 
         // 8. Fetch Momo Logs
         const dbMomoLogs = await fetchMomoLogs();
         if (dbMomoLogs !== null) {
-          setMomoLogs(dbMomoLogs);
-          localStorage.setItem("tally_momo_logs", JSON.stringify(dbMomoLogs));
+          const filtered = dbMomoLogs.filter(l => !blacklisted.has(l.id));
+          setMomoLogs(filtered);
+          localStorage.setItem("tally_momo_logs", JSON.stringify(filtered));
         }
 
         setSupabaseStatus("connected");
@@ -533,6 +578,7 @@ export default function App() {
   };
 
   const handleDeleteProduct = async (id: string) => {
+    registerDeletedId(id);
     const updated = products.filter((p) => p.id !== id);
     setProducts(updated);
     updateLocalStorage("tally_products", updated);
@@ -561,6 +607,7 @@ export default function App() {
   };
 
   const handleDeleteStaffCode = async (code: string) => {
+    registerDeletedId(code);
     const updated = staffCodes.filter((s) => s.code !== code);
     setStaffCodes(updated);
     updateLocalStorage("tally_staff", updated);
@@ -589,6 +636,7 @@ export default function App() {
   };
 
   const handleDeleteCategory = async (id: string) => {
+    registerDeletedId(id);
     const updated = categories.filter((c) => c.id !== id);
     setCategories(updated);
     updateLocalStorage("tally_categories", updated);
@@ -691,6 +739,7 @@ export default function App() {
   };
 
   const handleDeleteExpense = async (id: string) => {
+    registerDeletedId(id);
     const updated = expenses.filter((e) => e.id !== id);
     setExpenses(updated);
     updateLocalStorage("tally_expenses", updated);
@@ -734,6 +783,7 @@ export default function App() {
   };
 
   const handleDeleteSale = async (id: string) => {
+    registerDeletedId(id);
     const updated = sales.filter((s) => s.id !== id);
     setSales(updated);
     updateLocalStorage("tally_sales", updated);
@@ -781,6 +831,7 @@ export default function App() {
   };
 
   const handleDeleteStaffAdvance = async (id: string) => {
+    registerDeletedId(id);
     const updated = staffAdvances.filter((a) => a.id !== id);
     setStaffAdvances(updated);
     updateLocalStorage("tally_staff_advances", updated);
@@ -822,6 +873,7 @@ export default function App() {
   };
 
   const handleDeleteMomoLog = async (id: string) => {
+    registerDeletedId(id);
     const updated = momoLogs.filter((l) => l.id !== id);
     setMomoLogs(updated);
     updateLocalStorage("tally_momo_logs", updated);

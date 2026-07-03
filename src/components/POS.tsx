@@ -29,6 +29,12 @@ export default function POS({ products, staffCodes, onSaleComplete }: POSProps) 
   const [paymentType, setPaymentType] = React.useState<"Cash" | "bKash" | "Nogod" | "Rocket" | "Card" | "Others">("Cash");
   const [paymentDetails, setPaymentDetails] = React.useState("");
 
+  // Custom Date / Backdated Entry State
+  const [saleMode, setSaleMode] = React.useState<"current" | "backdated">("current");
+  const [customSaleDate, setCustomSaleDate] = React.useState(() => {
+    return new Date().toISOString().slice(0, 10);
+  });
+
   // Keypad State
   const [keypadOpen, setKeypadOpen] = React.useState(false);
   const [keypadTitle, setKeypadTitle] = React.useState("");
@@ -136,10 +142,18 @@ export default function POS({ products, staffCodes, onSaleComplete }: POSProps) 
     // Generate Invoice Number
     const invoiceNo = `INV-${Math.floor(100000 + Math.random() * 900000)}`;
 
+    let saleDate = new Date().toISOString();
+    if (saleMode === "backdated" && customSaleDate) {
+      const now = new Date();
+      const selected = new Date(customSaleDate);
+      selected.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+      saleDate = selected.toISOString();
+    }
+
     const newSale: Sale = {
       id: `sale-${Date.now()}`,
       invoiceNo,
-      date: new Date().toISOString(),
+      date: saleDate,
       items: cart.map((item) => ({
         productId: item.product.id,
         name: item.product.name,
@@ -168,6 +182,8 @@ export default function POS({ products, staffCodes, onSaleComplete }: POSProps) 
     setPaymentType("Cash");
     setPaymentDetails("");
     setIsMobileCartOpen(false);
+    setSaleMode("current");
+    setCustomSaleDate(new Date().toISOString().slice(0, 10));
   };
 
   // Auto set received amount to total for quick convenience
@@ -307,6 +323,47 @@ export default function POS({ products, staffCodes, onSaleComplete }: POSProps) 
         {/* Checkout Forms & Calculations */}
         <form onSubmit={handleCheckout} className="space-y-4 border-t border-slate-100 pt-4">
           
+          {/* Sale Mode Selection */}
+          <div className="p-3.5 bg-slate-50 border border-slate-200/60 rounded-2xl space-y-2.5">
+            <label className="text-[11px] font-bold text-slate-500 block">বিক্রয়ের সময় (Sale Time Mode)</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setSaleMode("current")}
+                className={`py-2 px-2 rounded-xl text-[10px] font-bold text-center transition-all cursor-pointer ${
+                  saleMode === "current"
+                    ? "bg-blue-600 text-white shadow-sm shadow-blue-100"
+                    : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                আজকের বিক্রয়
+              </button>
+              <button
+                type="button"
+                onClick={() => setSaleMode("backdated")}
+                className={`py-2 px-2 rounded-xl text-[10px] font-bold text-center transition-all cursor-pointer ${
+                  saleMode === "backdated"
+                    ? "bg-blue-600 text-white shadow-sm shadow-blue-100"
+                    : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                আগের বিক্রয় (কাস্টম ডেট)
+              </button>
+            </div>
+
+            {saleMode === "backdated" && (
+              <div className="space-y-1 pt-1.5 border-t border-slate-200/50 mt-1.5">
+                <label className="text-[10px] font-bold text-slate-500 block">বিক্রয়ের তারিখ নির্ধারণ করুন:</label>
+                <input
+                  type="date"
+                  value={customSaleDate}
+                  onChange={(e) => setCustomSaleDate(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800"
+                />
+              </div>
+            )}
+          </div>
+
           {/* Salesman input */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-bold text-slate-500 block">বিক্রয়কর্মী কোড *</label>
@@ -609,9 +666,50 @@ export default function POS({ products, staffCodes, onSaleComplete }: POSProps) 
               </div>
             )}
 
-            {/* Form */}
+             {/* Form */}
             <form onSubmit={handleCheckout} className="space-y-4 border-t border-slate-100 pt-4">
               
+              {/* Sale Mode Selection */}
+              <div className="p-3 bg-slate-50 border border-slate-200/60 rounded-2xl space-y-2">
+                <label className="text-[11px] font-bold text-slate-500 block">বিক্রয়ের সময় (Sale Time Mode)</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSaleMode("current")}
+                    className={`py-1.5 px-2 rounded-xl text-[10px] font-bold text-center transition-all cursor-pointer ${
+                      saleMode === "current"
+                        ? "bg-blue-600 text-white shadow-sm shadow-blue-100"
+                        : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    আজকের বিক্রয়
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSaleMode("backdated")}
+                    className={`py-1.5 px-2 rounded-xl text-[10px] font-bold text-center transition-all cursor-pointer ${
+                      saleMode === "backdated"
+                        ? "bg-blue-600 text-white shadow-sm shadow-blue-100"
+                        : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    আগের বিক্রয় (কাস্টম ডেট)
+                  </button>
+                </div>
+
+                {saleMode === "backdated" && (
+                  <div className="space-y-1 pt-1.5 border-t border-slate-200/50 mt-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 block">বিক্রয়ের তারিখ নির্ধারণ করুন:</label>
+                    <input
+                      type="date"
+                      value={customSaleDate}
+                      onChange={(e) => setCustomSaleDate(e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 text-slate-800"
+                    />
+                  </div>
+                )}
+              </div>
+
               {/* Salesman input */}
               <div className="space-y-1.5">
                 <label className="text-[11px] font-bold text-slate-500 block">বিক্রয়কর্মী কোড *</label>
